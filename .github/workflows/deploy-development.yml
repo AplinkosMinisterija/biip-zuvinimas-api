@@ -1,8 +1,6 @@
 name: Deploy to Development
 
 on:
-  push:
-    branches: [ cd ]
   workflow_dispatch:
 
 concurrency: deploy-to-development
