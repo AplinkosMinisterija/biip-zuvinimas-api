@@ -15,7 +15,7 @@
     "dc:up": "docker compose -p zuvinimas-backend up --build -d",
     "dc:down": "docker compose -p zuvinimas-backend down",
     "dc:logs": "docker compose -p zuvinimas-backend logs -f",
-    "release": "dotenv release-it --"
+    "release": "release-it"
   },
   "keywords": [
     "microservices",
