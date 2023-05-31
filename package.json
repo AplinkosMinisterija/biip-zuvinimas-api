@@ -1,6 +1,6 @@
 {
   "name": "zuvinimas",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "My Moleculer-based microservices project",
   "scripts": {
     "db:migrate": "knex migrate:latest",
