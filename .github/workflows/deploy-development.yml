@@ -7,10 +7,6 @@ on:
 
 concurrency: deploy-to-development
 
-permissions:
-  contents: read
-  packages: write
-
 jobs:
   docker-build-push:
     name: Build & push docker image
