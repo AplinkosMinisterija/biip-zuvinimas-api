@@ -7,13 +7,14 @@ on:
 
 concurrency: deploy-to-production
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   docker-build-push:
     name: Build & push docker image
     uses: AplinkosMinisterija/reusable-workflows/.github/workflows/docker-build-push.yml@main
-    permissions:
-      contents: read
-      packages: write
     with:
       docker-image: ghcr.io/AplinkosMinisterija/biip-zuvinimas-api
       environment: production
