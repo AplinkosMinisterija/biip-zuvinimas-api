@@ -24,7 +24,6 @@
   "author": "",
   "devDependencies": {
     "@jest/globals": "^29.5.0",
-    "@release-it/conventional-changelog": "^5.1.1",
     "@types/bcrypt": "^5.0.0",
     "@types/bcryptjs": "^2.4.2",
     "@types/date-fns": "^2.6.0",
