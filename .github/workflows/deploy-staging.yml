@@ -6,10 +6,6 @@ on:
 
 concurrency: deploy-to-staging
 
-permissions:
-  contents: read
-  packages: write
-
 jobs:
   docker-build-push:
     name: Build & push docker image
