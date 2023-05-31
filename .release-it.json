@@ -7,5 +7,12 @@
   },
   "npm": {
     "publish": false
+  },
+  "plugins": {
+    "@release-it/conventional-changelog": {
+      "preset": "angular",
+      "header": "# Changelog",
+      "infile": "CHANGELOG.md"
+    }
   }
 }
