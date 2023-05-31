@@ -44,7 +44,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TYPE_ARG: ${{ fromJSON('{"auto":"", "patch":"--patch", "minor":"--minor", "major":"--major"}')[github.event.inputs.type] }}
-        run: npm run release -- --ci --verbose $TYPE_ARG
+        run: yarn run release --ci --verbose $TYPE_ARG
 
   publish-production-release:
     name: Publish production Docker image
