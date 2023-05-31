@@ -14,7 +14,8 @@
     "lint": "eslint --ext .js,.ts .",
     "dc:up": "docker compose -p zuvinimas-backend up --build -d",
     "dc:down": "docker compose -p zuvinimas-backend down",
-    "dc:logs": "docker compose -p zuvinimas-backend logs -f"
+    "dc:logs": "docker compose -p zuvinimas-backend logs -f",
+    "release": "dotenv release-it --"
   },
   "keywords": [
     "microservices",
@@ -23,6 +24,7 @@
   "author": "",
   "devDependencies": {
     "@jest/globals": "^29.5.0",
+    "@release-it/conventional-changelog": "^5.1.1",
     "@types/bcrypt": "^5.0.0",
     "@types/bcryptjs": "^2.4.2",
     "@types/date-fns": "^2.6.0",
@@ -35,6 +37,7 @@
     "@types/uuid": "^9.0.1",
     "@typescript-eslint/eslint-plugin": "^5.55.0",
     "@typescript-eslint/parser": "^5.55.0",
+    "dotenv-cli": "^7.2.1",
     "eslint": "^8.36.0",
     "eslint-config-prettier": "^8.7.0",
     "eslint-plugin-import": "^2.27.5",
@@ -46,6 +49,7 @@
     "moleculer-repl": "^0.7.3",
     "prettier": "2.8.4",
     "prettier-plugin-organize-imports": "^3.2.2",
+    "release-it": "^15.10.3",
     "ts-jest": "^29.0.5",
     "ts-node": "^10.9.1",
     "typescript": "^5.0.2"
