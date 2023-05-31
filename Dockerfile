@@ -9,7 +9,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+RUN yarn install --immutable --immutable-cache --check-cache --inline-builds && yarn cache clean
 
 # Copy source
 COPY . .
