@@ -1,6 +1,6 @@
 {
   "git": {
-    "requeireBranch": "main"
+    "requireBranch": "main"
   },
   "github": {
     "release": true
