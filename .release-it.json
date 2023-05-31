@@ -1,18 +1,12 @@
 {
   "git": {
-    "requireBranch": "main"
+    "requireBranch": "main",
+    "commit": false
   },
   "github": {
     "release": true
   },
   "npm": {
     "publish": false
-  },
-  "plugins": {
-    "@release-it/conventional-changelog": {
-      "preset": "angular",
-      "header": "# Changelog",
-      "infile": "CHANGELOG.md"
-    }
   }
 }
