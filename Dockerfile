@@ -1,5 +1,8 @@
-FROM node:19
+FROM node:18-alpine
 ENV TZ=Etc/GMT
+
+# Required for dependencies comming from git
+RUN apk add --no-cache git
 
 # Working directory
 WORKDIR /app
