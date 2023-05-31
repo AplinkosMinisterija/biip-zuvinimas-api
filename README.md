@@ -54,7 +54,7 @@ To get started with the BĮIP Žuvinimas API, follow the instructions below.
    yarn dev
    ```
 
-   The API will be available at `http://localhost:3000`.
+The API will be available at `http://localhost:3000`.
 
 ## Contributing
 
