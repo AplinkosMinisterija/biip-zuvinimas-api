@@ -50,9 +50,9 @@ const getStatusQueries = (maxTime: number) => ({
   [FishStockingStatus.CANCELED]: `canceled_at IS NOT NULL`,
   [FishStockingStatus.INSPECTED]: `signatures IS NOT NULL AND NOT EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NULL)`,
   [FishStockingStatus.FINISHED]: `signatures IS NULL AND NOT EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NULL)`,
-  [FishStockingStatus.ONGOING]: `NOW() < date_trunc('day',event_time + '00:00:00') + INTERVAL '${maxTime} days' AND NOW() > date_trunc('day',event_time + '00:00:00') AND EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NULL) AND canceled_at is NULL`,
-  [FishStockingStatus.UPCOMING]: `NOW() < date_trunc('day',event_time + '00:00:00') AND EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NULL) AND canceled_at is NULL`,
-  [FishStockingStatus.NOT_FINISHED]: `NOW() > date_trunc('day',event_time + '00:00:00') + INTERVAL '10 days' AND EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NULL) AND canceled_at is NULL`,
+  [FishStockingStatus.ONGOING]: `NOW() < date_trunc('day',event_time + '00:00:00') + INTERVAL '${maxTime} days' AND NOW() > date_trunc('day',event_time + '00:00:00') AND NOT EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NOT NULL) AND canceled_at is NULL`,
+  [FishStockingStatus.UPCOMING]: `NOW() < date_trunc('day',event_time + '00:00:00') AND NOT EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NOT NULL) AND canceled_at is NULL`,
+  [FishStockingStatus.NOT_FINISHED]: `NOW() > date_trunc('day',event_time + '00:00:00') + INTERVAL '10 days' AND NOT EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NOT NULL) AND canceled_at is NULL`,
 });
 
 const isCanceled = (fishStocking: any) => {
@@ -458,8 +458,7 @@ export type FishStocking<
   hooks: {
     before: {
       create: ['parseGeomField', 'parseReviewLocationField'],
-      createPermissive: ['parseGeomField', 'parseReviewLocationField'],
-      updateFishStocking: ['parseGeomField', 'parseReviewLocationField'],
+      updateFishStocking: ['parseGeomField'],
       updateRegistration: ['parseGeomField'],
       register: ['parseGeomField'],
       review: ['parseReviewLocationField'],
