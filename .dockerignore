@@ -4,3 +4,9 @@ Dockerfile
 node_modules
 test
 .vscode
+.git
+.github
+.env.example
+.release-it.json
+*.md
+!README*.md
