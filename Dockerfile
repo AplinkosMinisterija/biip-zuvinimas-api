@@ -42,4 +42,4 @@ ENV NODE_ENV=production
 ENV TZ=Etc/GMT
 
 # Start the server
-CMD ["sh", "-c", "yarn db:migrate && yarn start"]
+CMD ["sh", "-c", "yarn start"]
