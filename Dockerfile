@@ -1,22 +1,45 @@
-FROM node:18-alpine
-ENV TZ=Etc/GMT
+# Stage 1: Base image
+FROM node:18-alpine as base
 
-# Required for dependencies comming from git
+# Required for dependencies coming from git
 RUN apk add --no-cache git
 
-# Working directory
+# Stage 2: Builder image
+FROM base as builder
+
+# Set the working directory
 WORKDIR /app
 
 # Install dependencies
 COPY package.json yarn.lock ./
-RUN yarn install --immutable --immutable-cache --check-cache --inline-builds && yarn cache clean
+RUN yarn install --immutable --immutable-cache --inline-builds --production=false
 
 # Copy source
 COPY . .
 
-# Build and cleanup
-ENV NODE_ENV=production
+# Build the application
 RUN yarn build
 
-# Start server
-ENTRYPOINT ["sh", "-c", "yarn db:migrate && yarn start"]
+# Copy DB migrations
+COPY database ./dist/database
+
+# Stage 3: Final production image
+FROM base
+
+# Set the working directory
+WORKDIR /app
+
+# Install only production dependencies
+COPY package.json yarn.lock ./
+RUN yarn install --immutable --immutable-cache --inline-builds --production \
+    && yarn cache clean
+
+# Copy built artifacts from builder stage
+COPY --from=builder /app/dist/ ./dist/
+
+# Set default environment variables
+ENV NODE_ENV=production
+ENV TZ=Etc/GMT
+
+# Start the server
+CMD ["sh", "-c", "yarn db:migrate && yarn start"]
