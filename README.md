@@ -4,20 +4,23 @@
 [![GitHub issues](https://img.shields.io/github/issues/AplinkosMinisterija/biip-zuvinimas-api)](https://github.com/AplinkosMinisterija/biip-zuvinimas-api/issues)
 [![GitHub stars](https://img.shields.io/github/stars/AplinkosMinisterija/biip-zuvinimas-api)](https://github.com/AplinkosMinisterija/biip-zuvinimas-api/stargazers)
 
-This repository contains the source code and documentation for the BĮIP Žuvinimas API, developed by the Aplinkos Ministerija.
+This repository contains the source code and documentation for the BĮIP Žuvinimas API, developed by the Aplinkos
+Ministerija.
 
 ## Table of Contents
 
 - [About the Project](#about-the-project)
 - [Getting Started](#getting-started)
-  - [Installation](#installation)
-  - [Usage](#usage)
+    - [Installation](#installation)
+    - [Usage](#usage)
+- [Deployment](#deployment)
 - [Contributing](#contributing)
 - [License](#license)
 
 ## About the Project
 
-The BĮIP Žuvinimas API is designed to provide information and functionalities related to fish stocking activities. It aims to support the management and conservation of fish populations, as well as the sustainability of fishing practices.
+The BĮIP Žuvinimas API is designed to provide information and functionalities related to fish stocking activities. It
+aims to support the management and conservation of fish populations, as well as the sustainability of fishing practices.
 
 Key features of the API include:
 
@@ -45,7 +48,8 @@ To get started with the BĮIP Žuvinimas API, follow the instructions below.
 
 ### Usage
 
-1. Set up the required environment variables. Copy the `.env.example` file to `.env` and provide the necessary values for the variables.
+1. Set up the required environment variables. Copy the `.env.example` file to `.env` and provide the necessary values
+   for the variables.
 
 2. Start the API server:
 
@@ -56,9 +60,33 @@ To get started with the BĮIP Žuvinimas API, follow the instructions below.
 
 The API will be available at `http://localhost:3000`.
 
+## Deployment
+
+### Production
+
+To deploy the application to the production environment, create a new GitHub release:
+
+1. Go to the repository's main page on GitHub.
+2. Click on the "Releases" tab.
+3. Click on the "Create a new release" button.
+4. Provide a version number, such as `1.2.3`, and other relevant information.
+5. Click on the "Publish release" button.
+
+Alternatively, you can run `yarn release` on your computer, and the GitHub release page will be prefilled.
+
+### Staging
+
+The `main` branch of the repository is automatically deployed to the staging environment. Any changes pushed to the main
+branch will trigger a new deployment.
+
+### Development
+
+To deploy any branch to the development environment use the `Deploy to Development` GitHub action.
+
 ## Contributing
 
-Contributions are welcome! If you find any issues or have suggestions for improvements, please open an issue or submit a pull request. For more information, see the [contribution guidelines](./CONTRIBUTING.md).
+Contributions are welcome! If you find any issues or have suggestions for improvements, please open an issue or submit a
+pull request. For more information, see the [contribution guidelines](./CONTRIBUTING.md).
 
 ## License
 
