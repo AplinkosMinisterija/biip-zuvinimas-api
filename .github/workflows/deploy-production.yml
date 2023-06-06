@@ -1,54 +1,14 @@
-# Based on https://github.com/axios/axios/blob/v1.x/.github/workflows/release.yml
 name: Deploy to Production
 on:
-  workflow_dispatch:
-    inputs:
-      type:
-        type: choice
-        description: Choose release type
-        options:
-          - auto
-          - patch
-          - minor
-          - major
-        default: auto
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
 
 concurrency: deploy-to-production
 
 jobs:
-  release-production:
-    name: Release to production
-    environment: Production
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Git config
-        run: |
-          git config user.name "${GITHUB_ACTOR}"
-          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-
-      - name: Set up node 18
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: yarn
-
-      - name: Install dependencies
-        run: yarn install --immutable --immutable-cache --check-cache
-
-      - name: Make production release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TYPE_ARG: ${{ fromJSON('{"auto":"", "patch":"--patch", "minor":"--minor", "major":"--major"}')[github.event.inputs.type] }}
-        run: yarn run release --ci --verbose $TYPE_ARG
-
   publish-production-release:
     name: Publish production Docker image
-    needs: [ release-production ]
     uses: AplinkosMinisterija/reusable-workflows/.github/workflows/docker-build-push.yml@main
     permissions:
       contents: read

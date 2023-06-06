@@ -1,12 +1,16 @@
 {
   "git": {
     "requireBranch": "main",
-    "commit": false
+    "commit": false,
+    "tag": false,
+    "push": false
   },
   "github": {
-    "release": true
+    "release": true,
+    "web": true
   },
   "npm": {
-    "publish": false
+    "publish": false,
+    "ignoreVersion": true
   }
 }
