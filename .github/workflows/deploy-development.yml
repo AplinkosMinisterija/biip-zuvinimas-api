@@ -3,17 +3,27 @@ name: Deploy to Development
 on:
   workflow_dispatch:
 
-concurrency: deploy-to-development
+concurrency:
+  group: deploy-development
+  cancel-in-progress: true
 
 jobs:
-  docker-build-push:
+  deploy-development:
     name: Build & push docker image
-    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/docker-build-push.yml@main
+    runs-on: ubuntu-latest
+    environment: Development
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
-    with:
-      docker-image: ghcr.io/aplinkosministerija/biip-zuvinimas-api
-      environment: development
-      runs-on: ubuntu-latest
-      push: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - uses: AplinkosMinisterija/reusable-workflows/.github/actions/docker-build-tag-push@main
+        with:
+          docker-image: ghcr.io/aplinkosministerija/biip-zuvinimas-api
+          registry-password: ${{secrets.GITHUB_TOKEN}}
+          environment: development
+          runs-on: ubuntu-latest
+          push: true
