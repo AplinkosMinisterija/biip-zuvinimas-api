@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   deploy-development:
-    name: Build & push docker image
+    name: Deploy development
     runs-on: ubuntu-latest
     environment: Development
     timeout-minutes: 15
@@ -20,10 +20,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - uses: AplinkosMinisterija/reusable-workflows/.github/actions/docker-build-tag-push@main
+      - name: Build, tag and push Docker image
+        uses: AplinkosMinisterija/reusable-workflows/.github/actions/docker-build-tag-push@main
         with:
           docker-image: ghcr.io/aplinkosministerija/biip-zuvinimas-api
           registry-password: ${{secrets.GITHUB_TOKEN}}
           environment: development
           runs-on: ubuntu-latest
           push: true
+
+      - name: Trigger deploy
+        uses: convictional/trigger-workflow-and-wait@v1.6.1
+        with:
+          owner: ${{secrets.BIIP_TRIGGER_DEPLOY_ORGANIZATION}}
+          repo: ${{secrets.BIIP_TRIGGER_DEPLOY_REPOSITORY}}
+          github_token: ${{secrets.BIIP_TRIGGER_DEPLOY_GH_TOKEN}}
+          workflow_file_name: ${{secrets.BIIP_TRIGGER_DEPLOY_WORKFLOW_FILE_NAME}}
+          client_payload: '{"environment": "Development"}'
