@@ -26,7 +26,6 @@ jobs:
           docker-image: ghcr.io/aplinkosministerija/biip-zuvinimas-api
           registry-password: ${{secrets.GITHUB_TOKEN}}
           environment: development
-          runs-on: ubuntu-latest
           push: true
 
       - name: Trigger deploy
