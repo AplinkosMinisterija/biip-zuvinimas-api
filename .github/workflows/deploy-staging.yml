@@ -7,7 +7,7 @@ on:
 jobs:
   deploy-staging:
     name: Deploy staging
-    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/biip-deploy.yml@docker-trigger-deploy
+    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/biip-deploy.yml@main
     secrets: inherit
     permissions:
       contents: read
