@@ -13,7 +13,7 @@ jobs:
     with:
       environment: Development
       docker-image: ghcr.io/AplinkosMinisterija/biip-zuvinimas-api
-      trigger-workflow-organization: ${{secrets.BIIP_TRIGGER_DEPLOY_ORGANIZATION}}
-      trigger-workflow-repository: ${{secrets.BIIP_TRIGGER_DEPLOY_REPOSITORY}}
-      trigger-workflow-github-token: ${{secrets.BIIP_TRIGGER_DEPLOY_GH_TOKEN}}
-      trigger-workflow-file-name: ${{secrets.BIIP_TRIGGER_DEPLOY_WORKFLOW_FILE_NAME}}
+      trigger-workflow-organization: ${{ secrets.BIIP_TRIGGER_DEPLOY_ORGANIZATION }}
+      trigger-workflow-repository: ${{ secrets.BIIP_TRIGGER_DEPLOY_REPOSITORY }}
+      trigger-workflow-github-token: ${{ secrets.BIIP_TRIGGER_DEPLOY_GH_TOKEN }}
+      trigger-workflow-file-name: ${{ secrets.BIIP_TRIGGER_DEPLOY_WORKFLOW_FILE_NAME }}
