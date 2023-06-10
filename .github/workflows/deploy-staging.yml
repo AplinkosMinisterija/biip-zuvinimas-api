@@ -4,17 +4,17 @@ on:
   push:
     branches: [ main ]
 
-concurrency: deploy-to-staging
-
 jobs:
-  docker-build-push:
-    name: Build & push docker image
-    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/docker-build-push.yml@main
+  deploy-staging:
+    name: Deploy staging
+    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/docker-trigger-deploy.yml@docker-trigger-deploy
     permissions:
       contents: read
       packages: write
     with:
+      environment: Staging
       docker-image: ghcr.io/AplinkosMinisterija/biip-zuvinimas-api
-      environment: staging
-      runs-on: ubuntu-latest
-      push: true
+      trigger-workflow-organization: ${{secrets.BIIP_TRIGGER_DEPLOY_ORGANIZATION}}
+      trigger-workflow-repository: ${{secrets.BIIP_TRIGGER_DEPLOY_REPOSITORY}}
+      trigger-workflow-github-token: ${{secrets.BIIP_TRIGGER_DEPLOY_GH_TOKEN}}
+      trigger-workflow-file-name: ${{secrets.BIIP_TRIGGER_DEPLOY_WORKFLOW_FILE_NAME}}
