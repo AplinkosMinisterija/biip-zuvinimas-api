@@ -4,17 +4,14 @@ on:
   push:
     branches: [ main ]
 
-concurrency: deploy-to-staging
-
 jobs:
-  docker-build-push:
-    name: Build & push docker image
-    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/docker-build-push.yml@main
+  deploy-staging:
+    name: Deploy staging
+    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/biip-deploy.yml@main
+    secrets: inherit
     permissions:
       contents: read
       packages: write
     with:
+      environment: Staging
       docker-image: ghcr.io/AplinkosMinisterija/biip-zuvinimas-api
-      environment: staging
-      runs-on: ubuntu-latest
-      push: true

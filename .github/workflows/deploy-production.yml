@@ -4,18 +4,14 @@ on:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
 
-concurrency: deploy-to-production
-
 jobs:
-  publish-production-release:
-    name: Publish production Docker image
-    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/docker-build-push.yml@main
+  deploy-production:
+    name: Deploy production
+    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/biip-deploy.yml@main
+    secrets: inherit
     permissions:
       contents: read
       packages: write
     with:
+      environment: Production
       docker-image: ghcr.io/AplinkosMinisterija/biip-zuvinimas-api
-      environment: production
-      runs-on: ubuntu-latest
-      latest-tag: true
-      push: true
