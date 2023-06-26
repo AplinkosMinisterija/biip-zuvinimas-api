@@ -373,6 +373,11 @@ export default class UsersService extends moleculer.Service {
       notify: [email],
       throwErrors: true,
     });
+    //add to freelancer group
+    await ctx.call('auth.users.assignToGroup', {
+      id: authUser.id,
+      groupId: Number(process.env.FREELANCER_GROUP_ID),
+    });
 
     return this.createEntity(ctx, {
       authUser: authUser.id,
@@ -380,6 +385,7 @@ export default class UsersService extends moleculer.Service {
       lastName,
       email,
       phone,
+      isFreelancer: true
     });
   }
 
