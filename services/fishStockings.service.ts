@@ -561,6 +561,12 @@ export default class FishStockingsService extends moleculer.Service {
       }
       return fishStocking;
     }
+    if(ctx.params.batches) {
+      await ctx.call('fishBatches.updateBatches', {
+        batches: ctx.params.batches,
+        fishStocking: Number(ctx.params.id),
+      });
+    }
     return this.updateEntity(ctx);
   }
 
