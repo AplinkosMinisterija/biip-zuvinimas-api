@@ -6,7 +6,7 @@ on:
 jobs:
   deploy-development:
     name: Deploy development
-    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/biip-deploy.yml@main
+    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/biip-deploy.yml@deploy-using-github-app
     secrets: inherit
     permissions:
       contents: read
