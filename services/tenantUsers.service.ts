@@ -225,6 +225,8 @@ export default class TenantUsersService extends moleculer.Service {
       role: authRole,
     };
 
+    console.log('invite data', inviteData);
+
     if (email) {
       inviteData.notify = [email];
     }
