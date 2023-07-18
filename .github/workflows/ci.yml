@@ -5,11 +5,15 @@ on:
     branches: [ main ]
   pull_request:
 
+permissions: { }
+
 jobs:
   build-test:
     name: Build and test
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
 
     services:
       postgres:
@@ -49,10 +53,17 @@ jobs:
 
   validate-docker-build:
     name: Validate if docker image builds
-    uses: AplinkosMinisterija/reusable-workflows/.github/workflows/docker-build-push.yml@main
-    with:
-      docker-image: ghcr.io/aplinkosministerija/example
-      environment: test
-      runs-on: ubuntu-latest
-      latest-tag: true
-      push: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Build & tag docker image
+        uses: AplinkosMinisterija/reusable-workflows/.github/actions/docker-build-tag-push@main
+        with:
+          environment: test
+          push: false
