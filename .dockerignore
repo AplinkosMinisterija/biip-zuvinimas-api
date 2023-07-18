@@ -7,6 +7,5 @@ test
 .git
 .github
 .env.example
-.release-it.json
 *.md
 !README*.md

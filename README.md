@@ -72,8 +72,6 @@ To deploy the application to the production environment, create a new GitHub rel
 4. Provide a version number, such as `1.2.3`, and other relevant information.
 5. Click on the "Publish release" button.
 
-Alternatively, you can run `yarn release` on your computer, and the GitHub release page will be prefilled.
-
 ### Staging
 
 The `main` branch of the repository is automatically deployed to the staging environment. Any changes pushed to the main

@@ -15,8 +15,7 @@
     "lint": "eslint --ext .js,.ts .",
     "dc:up": "docker compose -p zuvinimas-backend up --build -d",
     "dc:down": "docker compose -p zuvinimas-backend down",
-    "dc:logs": "docker compose -p zuvinimas-backend logs -f",
-    "release": "release-it"
+    "dc:logs": "docker compose -p zuvinimas-backend logs -f"
   },
   "keywords": [
     "microservices",
@@ -48,7 +47,6 @@
     "moleculer-repl": "^0.7.3",
     "prettier": "2.8.4",
     "prettier-plugin-organize-imports": "^3.2.2",
-    "release-it": "^15.10.3",
     "ts-jest": "^29.0.5",
     "ts-node": "^10.9.1",
     "typescript": "^5.0.2"
