@@ -349,7 +349,7 @@ export default class TenantUsersService extends moleculer.Service {
             });
 
             if (!tenant) {
-              return;
+              break;
             }
 
             let role = TenantUserRole.USER;
