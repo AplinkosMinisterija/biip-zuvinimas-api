@@ -15,7 +15,8 @@ module.exports = {
       tracingEventName: '$tracing.spans',
       /** @type {Object} Additional options for `Sentry.init`. */
       options: {
-        environment: process.env.NODE_ENV,
+        environment: process.env.ENVIRONMENT,
+        release: process.env.VERSION,
         tracesSampleRate: 1,
         integrations: [
           // enable HTTP calls tracing
