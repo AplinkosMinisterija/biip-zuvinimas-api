@@ -20,7 +20,8 @@ jobs:
           image-names: biip-zuvinimas-api
           account-type: org
           org-name: AplinkosMinisterija
-          token: ${{ secrets.PAT_GHCR_DELETE }}
+          token: ${{ github.token }}
+#          token: ${{ secrets.PAT_GHCR_DELETE }}
           cut-off: A week ago UTC
           keep-at-least: 1
           filter-tags: development-*
