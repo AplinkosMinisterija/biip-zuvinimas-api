@@ -15,10 +15,17 @@ jobs:
       packages: write
 
     steps:
+      - name: Generate image name
+        id: image
+        # This script will drop begin of string upto last occur of /
+        run: echo "image-name=${full-image-name##*/}" >> "$GITHUB_OUTPUT"
+        env:
+          full-image-name: ghcr.io/AplinkosMinisterija/biip-zuvinimas-api
+
       - name: Delete old images
         uses: snok/container-retention-policy@v2
         with:
-          image-names: ghcr.io/AplinkosMinisterija/biip-zuvinimas-api
+          image-names: ${{ steps.image.outputs.image-name }}
           account-type: org
           org-name: AplinkosMinisterija
           #          token: ${{ github.token }}
