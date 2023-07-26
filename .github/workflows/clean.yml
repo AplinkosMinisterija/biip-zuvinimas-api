@@ -11,9 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: read
+      contents: write
       packages: write
-
     steps:
       - name: Generate image name
         id: image
@@ -27,8 +26,8 @@ jobs:
           image-names: ${{ steps.image.outputs.image-name }}
           account-type: org
           org-name: AplinkosMinisterija
-          #          token: ${{ github.token }}
-          token: ${{ secrets.PAT_GHCR_DELETE }}
+          token: ${{ github.token }}
+          #          token: ${{ secrets.PAT_GHCR_DELETE }}
           cut-off: A week ago UTC
           filter-tags: development-*
           skip-tags: development,latest
