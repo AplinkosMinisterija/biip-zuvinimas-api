@@ -20,15 +20,9 @@ jobs:
           image=$(echo ghcr.io/AplinkosMinisterija/biip-zuvinimas-api | awk -F/ '{print $NF}')
           echo "image-name=${image}" >> "$GITHUB_OUTPUT"
 
-      - name: Delete old images
-        uses: snok/container-retention-policy@v2
+      - name: Delete old Docker images
+        uses: actions/delete-package-versions@v4
         with:
-          image-names: ${{ steps.image.outputs.image-name }}
-          account-type: org
-          org-name: AplinkosMinisterija
-          token: ${{ github.token }}
-          #          token: ${{ secrets.PAT_GHCR_DELETE }}
-          cut-off: A week ago UTC
-          filter-tags: development-*
-          skip-tags: development,latest
-          filter-include-untagged: true
+          package-name: ${{ steps.image.outputs.image-name }}
+          package-type: container
+          ignore-versions: '^(?!development-).*'
