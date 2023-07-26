@@ -17,10 +17,9 @@ jobs:
     steps:
       - name: Generate image name
         id: image
-        # This script will drop begin of string upto last occur of /
-        run: echo "image-name=${full-image-name##*/}" >> "$GITHUB_OUTPUT"
-        env:
-          full-image-name: ghcr.io/AplinkosMinisterija/biip-zuvinimas-api
+        run: |
+          image=$(echo ghcr.io/AplinkosMinisterija/biip-zuvinimas-api | awk -F/ '{print $NF}')
+          echo "image-name=${image}" >> "$GITHUB_OUTPUT"
 
       - name: Delete old images
         uses: snok/container-retention-policy@v2
