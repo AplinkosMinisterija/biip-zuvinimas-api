@@ -1,0 +1,28 @@
+name: Cleanup
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  clean-ghcr:
+    name: Delete old unused container images
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      packages: write
+
+    steps:
+      - name: Delete old images
+        uses: snok/container-retention-policy@v2
+        with:
+          image-names: ghcr.io/AplinkosMinisterija/biip-zuvinimas-api
+          account-type: org
+          org-name: AplinkosMinisterija
+          token: ${{ github.token }}
+          cut-off: A week ago UTC
+          keep-at-least: 1
+          filter-tags: development-*
+          skip-tags: development,latest
+          filter-include-untagged: true
