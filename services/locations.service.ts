@@ -115,9 +115,9 @@ export default class LocationsService extends moleculer.Service {
 
   @Action({
     rest: 'GET /municipalities',
-    // cache: {
-    //   ttl: 24 * 60 * 60,
-    // },
+    cache: {
+      ttl: 24 * 60 * 60,
+    },
   })
   async getMunicipalities(ctx: Context) {
     const res = await fetch(
