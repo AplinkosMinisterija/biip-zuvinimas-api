@@ -14,4 +14,4 @@ jobs:
     with:
       environment: Development
       docker-image: ghcr.io/AplinkosMinisterija/biip-zuvinimas-api
-      sentry-project: zuvinimas-api
+      enable-sentry: true
