@@ -30,6 +30,12 @@ export enum AuthUserRole {
     path: '/zuvinimasnew',
     routes: [
       {
+        path: '',
+        aliases: {
+          'GET /ping': 'api.ping',
+        },
+      },
+      {
         path: '/uml',
         aliases: {
           'GET /': 'uml.generate',
