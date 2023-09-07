@@ -121,7 +121,7 @@ export default class LocationsService extends moleculer.Service {
   })
   async getMunicipalities(ctx: Context) {
     const res = await fetch(
-      `${process.env.GEO_SERVER}/qgisserver/uetk_zuvinimas?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=municipalities&OUTPUTFORMAT=application/json&propertyName=sav_pav,sav_kodas`,
+      `${process.env.GEO_SERVER}/qgisserver/uetk_zuvinimas?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=municipalities&OUTPUTFORMAT=application/json&propertyName=pavadinimas,kodas`,
       {
         method: 'GET',
         headers: {
@@ -135,8 +135,8 @@ export default class LocationsService extends moleculer.Service {
     const items = data.features
       .map((f: any) => {
         return {
-          name: f.properties.sav_pav,
-          id: parseInt(f.properties.sav_kodas),
+          name: f.properties.pavadinimas,
+          id: parseInt(f.properties.kodas),
         };
       })
       .sort((s1: any, s2: any) => {
@@ -186,11 +186,11 @@ export default class LocationsService extends moleculer.Service {
 
         const mappedList = map(list, (item) => {
           return {
-            cadastral_id: item.properties.KADASTROID,
-            name: item.properties.PAVADINIMAS,
+            cadastral_id: item.properties.kadastro_id,
+            name: item.properties.pavadinimas,
             municipality: municipality,
-            area: item.properties.SHAPE_Area
-              ? (item.properties.SHAPE_Area / 10000).toFixed(2)
+            area: item.properties.st_area
+              ? (item.properties.st_area / 10000).toFixed(2)
               : undefined,
           };
         });
@@ -215,8 +215,8 @@ export default class LocationsService extends moleculer.Service {
     });
     const { features } = await data.json();
     return {
-      id: Number(features[0].properties.sav_kodas),
-      name: features[0].properties.sav_pav,
+      id: Number(features[0].properties.kodas),
+      name: features[0].properties.pavadinimas,
     };
   }
 }

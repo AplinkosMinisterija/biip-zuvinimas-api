@@ -52,3 +52,6 @@ EXPOSE 3000
 
 # Start the server
 CMD ["sh", "-c", "yarn start"]
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD wget -qO- http://localhost:3000/zuvinimasnew/ping || exit 1

@@ -14,19 +14,6 @@ services:
       TZ: 'Etc/GMT'
       PGTZ: 'Etc/GMT'
 
-  postgres_test:
-    image: postgis/postgis:14-master
-    networks:
-      - internal
-    ports:
-      - 5450:5432
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: zuvinimas
-      TZ: 'Etc/GMT'
-      PGTZ: 'Etc/GMT'
-
   redis:
     image: redis:latest
     networks:
