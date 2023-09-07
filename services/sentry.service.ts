@@ -1,7 +1,10 @@
 // @ts-ignore
 import SentryMixin from 'moleculer-sentry';
+import { Integrations } from '@sentry/node';
+import moleculer from 'moleculer';
+import { Service } from 'moleculer-decorators';
 
-module.exports = {
+@Service({
   mixins: [SentryMixin],
 
   settings: {
@@ -13,12 +16,18 @@ module.exports = {
       tracingEventName: '$tracing.spans',
       /** @type {Object} Additional options for `Sentry.init`. */
       options: {
-        environment: process.env.NODE_ENV,
+        environment: process.env.ENVIRONMENT,
+        release: process.env.VERSION,
+        tracesSampleRate: 1,
+        integrations: [
+          // enable HTTP calls tracing
+          new Integrations.Http({ tracing: true }),
+          new Integrations.Postgres(),
+        ],
       },
       /** @type {String?} Name of the meta containing user infos. */
-      userMetaKey: 'authUser',
+      userMetaKey: 'user',
     },
-
-    options: null,
   },
-};
+})
+export default class SentryService extends moleculer.Service {}

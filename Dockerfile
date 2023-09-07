@@ -37,7 +37,13 @@ RUN yarn install --immutable --immutable-cache --inline-builds --production \
 # Copy built artifacts from builder stage
 COPY --from=builder /app/dist/ ./dist/
 
-# Set default environment variables
+# Docker build args and environment variables
+ARG VERSION
+ENV VERSION=${VERSION}
+
+ARG ENVIRONMENT
+ENV ENVIRONMENT=${ENVIRONMENT}
+
 ENV NODE_ENV=production
 ENV TZ=Etc/GMT
 
