@@ -787,37 +787,36 @@ export default class FishStockingsService extends moleculer.Service {
     rest: 'GET /export',
   })
   async export(ctx: Context<any>) {
-    const data: any = await ctx.call('fishStockings.find', ctx.params);
-
-    const mappedData = data.map((fishStocking: any) => {
+    const data: any = await ctx.call('fishStockings.find', {...ctx.params, populate: ['assignedTo','reviewedBy', 'batches']});
+    const mappedData: any[] = [];
+    data.map((fishStocking: any) => {
       const fishOrigin =
         fishStocking.fishOrigin === 'GROWN'
           ? fishStocking?.fishOriginCompanyName
           : fishStocking?.fishOriginReservoir;
-      return {
-        'Įveisimo data': fishStocking?.eventTime,
-        Rajonas: fishStocking.location.municipality?.name,
-        'Vandens telkinio pavadinimas': fishStocking.location?.name,
 
-        'Telkinio kodas': fishStocking.location.cadastral_id,
-        'Žuvų, vėžių rūšis': `${fishStocking.batches.map(
-          (f: any) => f.fishType?.label,
-        )}`,
-        Amžius: `${fishStocking.batches.map((f: any) => f.fishAge?.label)}`,
-        'Kiekis, vnt.': `${fishStocking.batches.map(
-          (f: any) => f?.reviewAmount || f?.amount,
-        )}`,
-        'Svoris, kg': `${fishStocking.batches.map(
-          (f: any) => f?.reviewWeight || f?.weight || '',
-        )}`,
-        'Žuvys išaugintos': fishOrigin,
-        'Važtaraščio nr.': fishStocking?.waybillNo || '',
-        'Žuvininkystės tarnybos atstovas':
-          `${fishStocking?.assignedTo?.name || '-'} ${
-            fishStocking?.assignedTo?.lastName || '-'
-          }` || '',
-        'Veterinarinio pažymėjimo Nr.':
-          fishStocking?.veterinaryApprovalNo || '',
+      const date = fishStocking?.eventTime  || '-';
+      const municipality = fishStocking.location.municipality?.name || '-';
+      const waterBodyName = fishStocking.location?.name || '-';
+      const waterBodyCode = fishStocking.location.cadastral_id || '-';
+      const waybillNo = fishStocking.waybillNo || '-';
+      const assignedTo = fishStocking.reviewedBy?.fullName || fishStocking.assignedTo?.fullName ||  '-'
+      const veterinaryApprovalNo =  fishStocking?.veterinaryApprovalNo || '-';
+      for(const batch of fishStocking.batches || []) {
+        mappedData.push({
+           'Įveisimo data': date,
+           'Rajonas': municipality,
+           'Vandens telkinio pavadinimas': waterBodyName,
+           'Telkinio kodas': waterBodyCode,
+           'Žuvų, vėžių rūšis': batch.fishType?.label,
+           'Amžius': batch.fishAge?.label,
+           'Kiekis, vnt.': batch.reviewAmount || 0,
+           'Svoris, kg': batch.reviewWeight || 0,
+           'Žuvys išaugintos': fishOrigin,
+           'Važtaraščio nr.': waybillNo || '',
+           'Atsakingas asmuo': assignedTo || '',
+           'Veterinarinio pažymėjimo Nr.': veterinaryApprovalNo || '',
+         });
       };
     });
 
@@ -833,6 +832,7 @@ export default class FishStockingsService extends moleculer.Service {
         'Content-Disposition': 'attachment; filename="zuvinimai.xlsx"',
       },
     };
+
     const stream = new Readable();
     stream.push(buffer);
     stream.push(null);
