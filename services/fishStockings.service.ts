@@ -950,7 +950,7 @@ export default class FishStockingsService extends moleculer.Service {
       if (filters.fishTypes) {
         const filter = filters.fishTypes;
         query.$raw = {
-          condition: `EXISTS (SELECT 1 FROM jsonb_each("fish_types") AS ft WHERE ft.value::int IN (${filter}))`,
+          condition: (query?.$raw ? query.$raw.condition + ' AND ' : '' ) + `EXISTS (SELECT 1 FROM jsonb_each("fish_types") AS ft WHERE ft.value::int IN (${filter}))`,
         };
       }
 
