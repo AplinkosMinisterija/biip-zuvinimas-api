@@ -157,8 +157,16 @@ export default class TenantsService extends moleculer.Service {
       personalCode,
     } = ctx.params;
 
-    // it will throw error if tenant aleady exists
-    const authGroup: any = await ctx.call('auth.users.invite', { companyCode });
+    const inviteData: any = {
+      companyCode: ctx.params.companyCode,
+      throwErrors: true,
+    };
+    if (ctx.params.companyEmail) {
+      inviteData.notify = [ctx.params.companyEmail];
+    }
+
+    // it will throw error if tenant already exists
+    const authGroup: any = await ctx.call('auth.users.invite', inviteData);
 
     const tenant: Tenant = await this.createEntity(ctx, {
       authGroup: authGroup.id,
