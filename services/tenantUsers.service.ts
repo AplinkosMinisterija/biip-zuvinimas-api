@@ -122,9 +122,7 @@ export type TenantUser<
     before: {
       create: ['beforeCreate'],
       list: ['beforeSelect'],
-      find: ['beforeSelect'],
       count: ['beforeSelect'],
-      get: ['beforeSelect'],
       all: ['beforeSelect'],
     },
   },
