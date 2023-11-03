@@ -375,7 +375,11 @@ export default class TenantUsersService extends moleculer.Service {
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can select users from tenant.');
     
       if (ctx.meta.authUser.type === AuthUserRole.USER) {
-          ctx.params.query.tenant = ctx?.meta?.profile
+         const  query =  ctx.params.query
+          ctx.params.query = {
+            tenant: ctx.meta.profile,
+            ...query,
+          };
       }
   }
 
