@@ -167,6 +167,7 @@ export default class ApiService extends moleculer.Service {
             if (!currentTenantUser) {
                 throwNoRightsError('Unauthorized')
             }
+            ctx.meta.profile = profile;
         }
     }
 
@@ -175,7 +176,6 @@ export default class ApiService extends moleculer.Service {
     ctx.meta.authUser = authUser;
     ctx.meta.authToken = token;
     ctx.meta.user = user;
-    ctx.meta.profile = req.headers['x-profile'];
 
     return user;
   }
