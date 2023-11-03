@@ -1,3 +1,4 @@
+import Moleculer, { Errors } from 'moleculer';
 import { User } from '../services/users.service';
 import { FieldHookCallback } from './';
 
@@ -97,3 +98,13 @@ export const COMMON_SCOPES = {
 };
 
 export const COMMON_DEFAULT_SCOPES = ['notDeleted'];
+
+
+
+export function throwNoRightsError(message?: string): Errors.MoleculerError {
+  throw new Moleculer.Errors.MoleculerClientError(
+    message || `No rights.`,
+    401,
+    'NO_RIGHTS'
+  );
+}

@@ -3,18 +3,17 @@
 import moleculer, { Context } from 'moleculer';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
 import {
-  COMMON_DEFAULT_SCOPES,
-  COMMON_FIELDS,
-  COMMON_SCOPES,
   CommonFields,
-  CommonPopulates,
-  RestrictionType,
-  Table,
+  CommonPopulates, COMMON_DEFAULT_SCOPES,
+  COMMON_FIELDS,
+  COMMON_SCOPES, RestrictionType,
+  Table
 } from '../types';
 import { AuthUserRole, UserAuthMeta } from './api.service';
 import { User, UserType } from './users.service';
 
 import DbConnection from '../mixins/database.mixin';
+import { validateCanManageTenantUser } from '../utils/functions';
 import { Tenant } from './tenants.service';
 
 export enum AuthGroupRole {
@@ -122,6 +121,11 @@ export type TenantUser<
   hooks: {
     before: {
       create: ['beforeCreate'],
+      list: ['beforeSelect'],
+      find: ['beforeSelect'],
+      count: ['beforeSelect'],
+      get: ['beforeSelect'],
+      all: ['beforeSelect'],
     },
   },
 
@@ -367,6 +371,18 @@ export default class TenantUsersService extends moleculer.Service {
       }
     }
   }
+
+  @Method
+  async beforeSelect(ctx: Context < any, UserAuthMeta > ) {
+    validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can select users from tenant.');
+    
+      if (ctx.meta.authUser.type === AuthUserRole.USER) {
+          ctx.params.query.tenant = ctx?.meta?.profile
+      }
+  }
+
+
+
 
   @Event()
   async 'users.removed'(ctx: Context<{ data: User }>) {
