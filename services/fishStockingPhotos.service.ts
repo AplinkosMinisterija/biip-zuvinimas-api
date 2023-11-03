@@ -39,6 +39,7 @@ export type FishStockingPhoto<
       createActions: {
         create: false,
         createMany: false,
+        update:false
       },
     }),
   ],

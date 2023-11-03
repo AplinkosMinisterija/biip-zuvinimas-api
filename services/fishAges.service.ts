@@ -12,6 +12,7 @@ import {
   CommonFields,
   CommonPopulates,
   Table,
+  RestrictionType,
 } from '../types';
 
 interface Fields extends CommonFields {
@@ -29,7 +30,12 @@ export type FishAge<
 
 @Service({
   name: 'fishAges',
-  mixins: [DbConnection()],
+  mixins: [DbConnection({
+    collection: 'fishAges',
+    createActions: {
+      createMany: false,
+    },
+  })],
   settings: {
     fields: {
       id: {
@@ -42,6 +48,17 @@ export type FishAge<
     },
     scopes: {
       ...COMMON_SCOPES,
+    },
+    actions: {
+      remove: {
+        types: [RestrictionType.ADMIN],
+      },
+      create: {
+        types: [RestrictionType.ADMIN],
+      },
+      update: {
+        types: [RestrictionType.ADMIN],
+      },
     },
     defaultScopes: [...COMMON_DEFAULT_SCOPES],
   },

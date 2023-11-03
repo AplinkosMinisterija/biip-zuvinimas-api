@@ -44,6 +44,8 @@ export type TenantUser<
   F extends keyof (Fields & Populates) = keyof Fields,
 > = Table<Fields, Populates, P, F>;
 
+
+
 @Service({
   name: 'tenantUsers',
 
@@ -120,7 +122,9 @@ export type TenantUser<
   // TODO: list action - hooksu apriboti tik useriui priklausancius
   hooks: {
     before: {
-      create: ['beforeCreate'],
+      create: ['beforeCreate','canManageTenantUsers'],
+      update:['canManageTenantUsers'],
+      remove:['canManageTenantUsers'],
       list: ['beforeSelect'],
       count: ['beforeSelect'],
       all: ['beforeSelect'],
@@ -203,18 +207,8 @@ export default class TenantUsersService extends moleculer.Service {
       tenant: tenantId,
     } = ctx.params;
     // OWNER and USER_ADMIN can invite users
-    if (
-      ctx.meta.authUser?.type === AuthUserRole.USER &&
-      ![TenantUserRole.OWNER, TenantUserRole.USER_ADMIN].includes(
-        ctx.meta.user.tenants[tenantId],
-      )
-    ) {
-      throw new moleculer.Errors.MoleculerClientError(
-        'Only OWNER and USER_ADMIN can add users to tenant.',
-        401,
-        'NO_RIGHTS',
-      );
-    }
+
+    validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can add users to tenant.');
 
     const tenant: Tenant = await ctx.call('tenants.resolve', { id: tenantId });
 
@@ -323,6 +317,28 @@ export default class TenantUsersService extends moleculer.Service {
     });
   }
 
+
+
+  @Method
+  async beforeSelect(ctx: Context < any, UserAuthMeta > ) {
+    validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can select users from tenant.');
+    
+      if (ctx.meta.authUser.type === AuthUserRole.USER) {
+         const  query =  ctx.params.query
+          ctx.params.query = {
+            tenant: ctx.meta.profile,
+            ...query,
+          };
+      }
+  }
+
+
+  @Method
+  async canManageTenantUsers(ctx: Context < any, UserAuthMeta > ) {
+    validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can manage tenant users.');
+  }
+
+
   @Method
   async seedDB() {
     await this.broker.waitForServices(['auth', 'tenants', 'users']);
@@ -368,19 +384,6 @@ export default class TenantUsersService extends moleculer.Service {
         }
       }
     }
-  }
-
-  @Method
-  async beforeSelect(ctx: Context < any, UserAuthMeta > ) {
-    validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can select users from tenant.');
-    
-      if (ctx.meta.authUser.type === AuthUserRole.USER) {
-         const  query =  ctx.params.query
-          ctx.params.query = {
-            tenant: ctx.meta.profile,
-            ...query,
-          };
-      }
   }
 
 
