@@ -157,7 +157,7 @@ export default class ApiService extends moleculer.Service {
             },
         });
         const profile = req.headers['x-profile'] as any
-        if (!!profile && !isNaN(profile)) {
+        if (!!profile) {
             const currentTenantUser = await ctx.call('tenantUsers.findOne', {
                 query: {
                     tenant: profile,
@@ -167,8 +167,8 @@ export default class ApiService extends moleculer.Service {
             if (!currentTenantUser) {
                 throwNoRightsError('Unauthorized')
             }
+            ctx.meta.profile = profile;
           }
-          ctx.meta.profile = profile;
     }
 
   

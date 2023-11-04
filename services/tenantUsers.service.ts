@@ -132,12 +132,12 @@ export type TenantUser<
   },
 
   actions: {
-    find: {},
+    find: { auth: RestrictionType.DEFAULT, },
     list: {
       auth: RestrictionType.DEFAULT,
     },
-    count: {},
-    get: {},
+    count: { auth: RestrictionType.DEFAULT },
+    get: { auth: RestrictionType.DEFAULT },
     create: {
       auth: RestrictionType.ADMIN,
     },
@@ -221,7 +221,6 @@ export default class TenantUsersService extends moleculer.Service {
       role: authRole,
     };
 
-    console.log('invite data', inviteData);
 
     if (email) {
       inviteData.notify = [email];
@@ -323,8 +322,15 @@ export default class TenantUsersService extends moleculer.Service {
   async beforeSelect(ctx: Context < any, UserAuthMeta > ) {
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can select users from tenant.');
     
-      if (ctx.meta.authUser.type === AuthUserRole.USER) {
-         const  query =  ctx.params.query
+    
+    if (ctx.meta.authUser.type === AuthUserRole.USER) {
+      if (typeof ctx.params.query === 'string') {
+        ctx.params.query = JSON.parse(ctx.params.filter);
+      }
+      
+      const  query =  ctx.params.query
+
+
           ctx.params.query = {
             tenant: ctx.meta.profile,
             ...query,

@@ -6,14 +6,13 @@ services:
     networks:
       - internal
     ports:
-      - 5449:5432
+      - 4599:5432
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: zuvinimas
       TZ: 'Etc/GMT'
       PGTZ: 'Etc/GMT'
-
   redis:
     image: redis:latest
     networks:
@@ -24,8 +23,8 @@ services:
   minio:
     image: minio/minio:latest
     ports:
-      - 9030:9000
-      - 9031:9001
+      - 9140:9000
+      - 9141:9001
     networks:
       - internal
     environment:
@@ -35,6 +34,7 @@ services:
 
 networks:
   internal:
+
 
 volumes:
   data:
