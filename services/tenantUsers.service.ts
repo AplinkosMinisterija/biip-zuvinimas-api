@@ -325,7 +325,7 @@ export default class TenantUsersService extends moleculer.Service {
     
     if (ctx.meta.authUser.type === AuthUserRole.USER) {
       if (typeof ctx.params.query === 'string') {
-        ctx.params.query = JSON.parse(ctx.params.filter);
+        ctx.params.query = JSON.parse(ctx.params.query);
       }
       
       const  query =  ctx.params.query
