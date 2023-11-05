@@ -10,7 +10,7 @@ export default function (opts: any = {}) {
     type: 'Knex',
     options: {
       knex,
-      collection: opts.collection,
+      tableName: opts.collection,
     },
   };
 

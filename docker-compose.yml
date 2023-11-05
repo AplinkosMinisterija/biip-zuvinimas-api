@@ -13,7 +13,6 @@ services:
       POSTGRES_DB: zuvinimas
       TZ: 'Etc/GMT'
       PGTZ: 'Etc/GMT'
-
   redis:
     image: redis:latest
     networks:
@@ -35,6 +34,7 @@ services:
 
 networks:
   internal:
+
 
 volumes:
   data:
