@@ -6,7 +6,7 @@ services:
     networks:
       - internal
     ports:
-      - 4599:5432
+      - 5449:5432
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
