@@ -26,7 +26,7 @@ export type FishType<
 @Service({
   name: 'fishTypes',
   mixins: [DbConnection({
-    collection: 'fishAges',
+    collection: 'fishTypes',
     createActions: {
       createMany: false,
     },
