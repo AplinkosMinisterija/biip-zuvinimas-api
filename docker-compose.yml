@@ -23,8 +23,8 @@ services:
   minio:
     image: minio/minio:latest
     ports:
-      - 9140:9000
-      - 9141:9001
+      - 9130:9000
+      - 9131:9001
     networks:
       - internal
     environment:
