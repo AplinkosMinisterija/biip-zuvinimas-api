@@ -42,9 +42,7 @@ export default class FishAgesService extends moleculer.Service {
       TemplateModel: {
         waterBody: ctx.params.fishStocking.location.name,
         municipality: ctx.params.fishStocking.location.municipality.name,
-        title: ctx.params.update
-          ? 'Įžuvinimas atnaujintas'
-          : 'Įžuvinimas sukurtas',
+        title: ctx.params.update ? 'Įžuvinimas atnaujintas' : 'Įžuvinimas sukurtas',
         typeTitle: ctx.params.update ? 'atnaujintas' : 'sukurtas naujas',
         action_url: `${process.env.ADMIN_HOST}/zuvinimas/zurnalas/${ctx.params.fishStocking.id}`,
       },
@@ -64,9 +62,7 @@ export default class FishAgesService extends moleculer.Service {
       fishStocking: 'any',
     },
   })
-  async sendFishStockingAssignedEmail(
-    ctx: Context<{ email: string; fishStocking: FishStocking }>,
-  ) {
+  async sendFishStockingAssignedEmail(ctx: Context<{ email: string; fishStocking: FishStocking }>) {
     if (!emailCanBeSent()) return;
 
     const data = {

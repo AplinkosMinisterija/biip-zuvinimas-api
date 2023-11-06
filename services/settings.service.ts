@@ -5,10 +5,13 @@ import { Action, Method, Service } from 'moleculer-decorators';
 
 import DbConnection from '../mixins/database.mixin';
 import {
-  CommonFields,
-  CommonPopulates, COMMON_DEFAULT_SCOPES,
+  COMMON_DEFAULT_SCOPES,
   COMMON_FIELDS,
-  COMMON_SCOPES, RestrictionType, Table
+  COMMON_SCOPES,
+  CommonFields,
+  CommonPopulates,
+  RestrictionType,
+  Table,
 } from '../types';
 import { UserAuthMeta } from './api.service';
 
@@ -35,7 +38,7 @@ export type Setting<
         createMany: false,
         list: false,
         update: false,
-        all:false
+        all: false,
       },
     }),
   ],
@@ -57,7 +60,7 @@ export type Setting<
       find: {
         auth: RestrictionType.DEFAULT,
       },
-      get: { auth: RestrictionType.DEFAULT,},
+      get: { auth: RestrictionType.DEFAULT },
     },
     defaultScopes: [...COMMON_DEFAULT_SCOPES],
   },

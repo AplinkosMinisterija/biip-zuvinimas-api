@@ -3,7 +3,6 @@
 import moleculer from 'moleculer';
 import { Method, Service } from 'moleculer-decorators';
 
-
 import DbConnection from '../mixins/database.mixin';
 import {
   COMMON_DEFAULT_SCOPES,
@@ -11,8 +10,8 @@ import {
   COMMON_SCOPES,
   CommonFields,
   CommonPopulates,
-  Table,
   RestrictionType,
+  Table,
 } from '../types';
 
 interface Fields extends CommonFields {
@@ -27,15 +26,16 @@ export type FishAge<
   F extends keyof (Fields & Populates) = keyof Fields,
 > = Table<Fields, Populates, P, F>;
 
-
 @Service({
   name: 'fishAges',
-  mixins: [DbConnection({
-    collection: 'fishAges',
-    createActions: {
-      createMany: false,
-    },
-  })],
+  mixins: [
+    DbConnection({
+      collection: 'fishAges',
+      createActions: {
+        createMany: false,
+      },
+    }),
+  ],
   settings: {
     fields: {
       id: {
@@ -67,15 +67,15 @@ export default class FishAgesService extends moleculer.Service {
   @Method
   async seedDB() {
     const data = [
-      { label: 'Paauginti jaunikliai'},
-      { label: 'Vasariniai šiųmetukai'},
-      { label: 'Šiųmetukai'},
-      { label: 'Lervutės'},
-      { label: 'Metinukai'},
-      { label: 'Dvivasariai'},
-      { label: 'Įvairiaamžiai'},
+      { label: 'Paauginti jaunikliai' },
+      { label: 'Vasariniai šiųmetukai' },
+      { label: 'Šiųmetukai' },
+      { label: 'Lervutės' },
+      { label: 'Metinukai' },
+      { label: 'Dvivasariai' },
+      { label: 'Įvairiaamžiai' },
       { label: 'Trivasariai' },
-      { label: 'Reproduktoriai'},
+      { label: 'Reproduktoriai' },
     ];
     await this.createEntities(null, data);
   }

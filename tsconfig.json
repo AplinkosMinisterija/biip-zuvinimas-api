@@ -10,7 +10,7 @@
     "sourceMap": true,
     "pretty": true,
     "target": "es6",
-    "outDir": "dist",
+    "outDir": "dist"
   },
   "include": ["./**/*"],
   "exclude": ["node_modules/**/*"]

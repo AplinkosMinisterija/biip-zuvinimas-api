@@ -3,16 +3,8 @@
 import { find, isEmpty, map } from 'lodash';
 import moleculer, { Context } from 'moleculer';
 import { Action, Method, Service } from 'moleculer-decorators';
-import {
-  GeomFeatureCollection,
-  coordinatesToGeometry,
-} from '../modules/geometry';
-import {
-  CommonFields,
-  CommonPopulates,
-  RestrictionType,
-  Table,
-} from '../types';
+import { GeomFeatureCollection, coordinatesToGeometry } from '../modules/geometry';
+import { CommonFields, CommonPopulates, RestrictionType, Table } from '../types';
 import { UserAuthMeta } from './api.service';
 const getBox = (geom: GeomFeatureCollection, tolerance: number = 0.001) => {
   const coordinates: any = geom.features[0].geometry.coordinates;
@@ -71,8 +63,7 @@ export default class LocationsService extends moleculer.Service {
       return riverOrLake;
     } else if (search) {
       const url =
-        `${process.env.INTERNAL_API}/uetk/search?` +
-        new URLSearchParams({ search, ...rest });
+        `${process.env.INTERNAL_API}/uetk/search?` + new URLSearchParams({ search, ...rest });
 
       const response = await fetch(url);
 

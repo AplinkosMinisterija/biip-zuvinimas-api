@@ -11,8 +11,8 @@ Ministerija.
 
 - [About the Project](#about-the-project)
 - [Getting Started](#getting-started)
-    - [Installation](#installation)
-    - [Usage](#usage)
+  - [Installation](#installation)
+  - [Usage](#usage)
 - [Deployment](#deployment)
 - [Contributing](#contributing)
 - [License](#license)

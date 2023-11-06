@@ -3,5 +3,7 @@ exports.up = function (knex) {
 };
 
 exports.down = function (knex) {
-  return knex.schema.raw(`ALTER TABLE fish_stockings ALTER COLUMN geom type geometry(geometry, 3346)`);
+  return knex.schema.raw(
+    `ALTER TABLE fish_stockings ALTER COLUMN geom type geometry(geometry, 3346)`,
+  );
 };

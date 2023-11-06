@@ -143,9 +143,7 @@ export default class FishBatchesService extends moleculer.Service {
       existingBatches,
       (item: FishBatch) => !batches.some((b) => b.id === item.id),
     );
-    const promises = map(deleteBatches, (batch: FishBatch) =>
-      this.removeEntity(ctx, batch),
-    );
+    const promises = map(deleteBatches, (batch: FishBatch) => this.removeEntity(ctx, batch));
     await Promise.all(promises);
 
     const updateOrCreatePromises = map(batches, (batch: FishBatch) => {
