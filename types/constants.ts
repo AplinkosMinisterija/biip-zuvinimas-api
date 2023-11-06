@@ -15,10 +15,7 @@ export type Table<
   Populates = {},
   P extends keyof Populates = never,
   F extends keyof (Fields & Populates) = keyof Fields,
-> = Pick<
-  Omit<Fields, P> & Pick<Populates, P>,
-  Extract<P | Exclude<keyof Fields, P>, F>
->;
+> = Pick<Omit<Fields, P> & Pick<Populates, P>, Extract<P | Exclude<keyof Fields, P>, F>>;
 
 export interface CommonFields {
   createdBy: User['id'];
@@ -99,12 +96,6 @@ export const COMMON_SCOPES = {
 
 export const COMMON_DEFAULT_SCOPES = ['notDeleted'];
 
-
-
 export function throwNoRightsError(message?: string): Errors.MoleculerError {
-  throw new Moleculer.Errors.MoleculerClientError(
-    message || `No rights.`,
-    401,
-    'NO_RIGHTS'
-  );
+  throw new Moleculer.Errors.MoleculerClientError(message || `No rights.`, 401, 'NO_RIGHTS');
 }

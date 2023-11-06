@@ -2,12 +2,7 @@
 
 import moleculer, { Context } from 'moleculer';
 import { Action, Service } from 'moleculer-decorators';
-import {
-  CommonFields,
-  CommonPopulates,
-  RestrictionType,
-  Table,
-} from '../types';
+import { CommonFields, CommonPopulates, RestrictionType, Table } from '../types';
 
 import { GeomFeature } from '../modules/geometry';
 import { FishBatch } from './fishBatches.service';
@@ -89,14 +84,11 @@ export default class FishAgesService extends moleculer.Service {
     auth: RestrictionType.PUBLIC,
   })
   async getStatistics(ctx: Context<any>) {
-    const completedFishStockings: FishStocking[] = await ctx.call(
-      'fishStockings.count',
-      {
-        filter: {
-          status: ['FINISHED', 'INSPECTED'],
-        },
+    const completedFishStockings: FishStocking[] = await ctx.call('fishStockings.count', {
+      filter: {
+        status: ['FINISHED', 'INSPECTED'],
       },
-    );
+    });
 
     const locationsCount = await ctx.call('fishStockings.getLocationsCount');
 

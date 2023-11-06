@@ -15,14 +15,12 @@ import {
 } from '../types';
 
 const mandatoryAreas = [
-  12230311, 15050130, 20050142, 10030094, 12250300, 12250132, 10050218,
-  41040030, 15050156, 16050142, 10030327, 10030314, 12130427, 12131313,
-  10030329, 11030062, 15050157, 12250112, 12030530, 12231948, 20050032,
-  12131329, 11030146, 15050004, 13050241, 12250190, 14050051, 12231655,
-  16050213, 17050220, 30050121, 12140445, 12242178, 12131317, 11050091,
-  12130212, 12250002, 12030090, 11050040, 10030379, 13050231, 11050111,
-  12232142, 12230992, 17050174, 30050186, 10050050, 12240991, 12230993,
-  12240994, 12230318, 12030400,
+  12230311, 15050130, 20050142, 10030094, 12250300, 12250132, 10050218, 41040030, 15050156,
+  16050142, 10030327, 10030314, 12130427, 12131313, 10030329, 11030062, 15050157, 12250112,
+  12030530, 12231948, 20050032, 12131329, 11030146, 15050004, 13050241, 12250190, 14050051,
+  12231655, 16050213, 17050220, 30050121, 12140445, 12242178, 12131317, 11050091, 12130212,
+  12250002, 12030090, 11050040, 10030379, 13050231, 11050111, 12232142, 12230992, 17050174,
+  30050186, 10050050, 12240991, 12230993, 12240994, 12230318, 12030400,
 ];
 
 interface Fields extends CommonFields {
@@ -73,17 +71,11 @@ export default class FishTypesService extends moleculer.Service {
       return ctx;
     }
     const filters =
-      typeof ctx.params.filter === 'string'
-        ? JSON.parse(ctx.params.filter)
-        : ctx.params.filter;
+      typeof ctx.params.filter === 'string' ? JSON.parse(ctx.params.filter) : ctx.params.filter;
     const filterTypes = keys(filters);
     let condition = '';
     for (const filterType of filterTypes) {
-      if (
-        ['name', 'cadastral_id', 'municipality'].some(
-          (key) => key === filterType,
-        )
-      ) {
+      if (['name', 'cadastral_id', 'municipality'].some((key) => key === filterType)) {
         const partialCondition = `"location"::jsonb->>'${filterType}' ilike '%${filters[filterType]}%'`;
         if (condition) {
           condition += ` AND ${partialCondition}`;

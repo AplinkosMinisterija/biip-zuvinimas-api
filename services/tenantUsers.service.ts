@@ -3,11 +3,13 @@
 import moleculer, { Context } from 'moleculer';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
 import {
-  CommonFields,
-  CommonPopulates, COMMON_DEFAULT_SCOPES,
+  COMMON_DEFAULT_SCOPES,
   COMMON_FIELDS,
-  COMMON_SCOPES, RestrictionType,
-  Table
+  COMMON_SCOPES,
+  CommonFields,
+  CommonPopulates,
+  RestrictionType,
+  Table,
 } from '../types';
 import { AuthUserRole, UserAuthMeta } from './api.service';
 import { User, UserType } from './users.service';
@@ -43,8 +45,6 @@ export type TenantUser<
   P extends keyof Populates = never,
   F extends keyof (Fields & Populates) = keyof Fields,
 > = Table<Fields, Populates, P, F>;
-
-
 
 @Service({
   name: 'tenantUsers',
@@ -122,9 +122,9 @@ export type TenantUser<
   // TODO: list action - hooksu apriboti tik useriui priklausancius
   hooks: {
     before: {
-      create: ['beforeCreate','canManageTenantUsers'],
-      update:['canManageTenantUsers'],
-      remove:['canManageTenantUsers'],
+      create: ['beforeCreate', 'canManageTenantUsers'],
+      update: ['canManageTenantUsers'],
+      remove: ['canManageTenantUsers'],
       list: ['beforeSelect'],
       count: ['beforeSelect'],
       all: ['beforeSelect'],
@@ -132,7 +132,7 @@ export type TenantUser<
   },
 
   actions: {
-    find: { auth: RestrictionType.DEFAULT, },
+    find: { auth: RestrictionType.DEFAULT },
     list: {
       auth: RestrictionType.DEFAULT,
     },
@@ -197,30 +197,20 @@ export default class TenantUsersService extends moleculer.Service {
       UserAuthMeta
     >,
   ) {
-    const {
-      firstName,
-      lastName,
-      personalCode,
-      role,
-      email,
-      phone,
-      tenant: tenantId,
-    } = ctx.params;
+    const { firstName, lastName, personalCode, role, email, phone, tenant: tenantId } = ctx.params;
     // OWNER and USER_ADMIN can invite users
 
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can add users to tenant.');
 
     const tenant: Tenant = await ctx.call('tenants.resolve', { id: tenantId });
 
-    const authRole =
-      role === TenantUserRole.OWNER ? AuthGroupRole.ADMIN : AuthGroupRole.USER;
+    const authRole = role === TenantUserRole.OWNER ? AuthGroupRole.ADMIN : AuthGroupRole.USER;
 
     const inviteData: any = {
       personalCode,
       companyId: tenant.authGroup,
       role: authRole,
     };
-
 
     if (email) {
       inviteData.notify = [email];
@@ -300,11 +290,7 @@ export default class TenantUsersService extends moleculer.Service {
     });
 
     if (tenantUsersCount) {
-      throw new moleculer.Errors.MoleculerClientError(
-        'Already exists',
-        422,
-        'ALREADY_EXISTS',
-      );
+      throw new moleculer.Errors.MoleculerClientError('Already exists', 422, 'ALREADY_EXISTS');
     }
 
     const userEntity: User = await ctx.call('users.get', { id: user });
@@ -316,34 +302,28 @@ export default class TenantUsersService extends moleculer.Service {
     });
   }
 
-
-
   @Method
-  async beforeSelect(ctx: Context < any, UserAuthMeta > ) {
+  async beforeSelect(ctx: Context<any, UserAuthMeta>) {
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can select users from tenant.');
-    
-    
+
     if (ctx.meta.authUser.type === AuthUserRole.USER) {
       if (typeof ctx.params.query === 'string') {
         ctx.params.query = JSON.parse(ctx.params.query);
       }
 
-      const  query =  ctx.params.query
+      const query = ctx.params.query;
 
-
-          ctx.params.query = {
-            tenant: ctx.meta.profile,
-            ...query,
-          };
-      }
+      ctx.params.query = {
+        tenant: ctx.meta.profile,
+        ...query,
+      };
+    }
   }
-
 
   @Method
-  async canManageTenantUsers(ctx: Context < any, UserAuthMeta > ) {
+  async canManageTenantUsers(ctx: Context<any, UserAuthMeta>) {
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can manage tenant users.');
   }
-
 
   @Method
   async seedDB() {
@@ -362,10 +342,7 @@ export default class TenantUsersService extends moleculer.Service {
 
       if (authUser.groups?.length) {
         for (const group of authUser.groups) {
-          if (
-            group.id &&
-            group.id !== Number(process.env.FREELANCER_GROUP_ID)
-          ) {
+          if (group.id && group.id !== Number(process.env.FREELANCER_GROUP_ID)) {
             const tenant: Tenant = await this.broker.call('tenants.findOne', {
               query: {
                 authGroup: group.id,
@@ -391,9 +368,6 @@ export default class TenantUsersService extends moleculer.Service {
       }
     }
   }
-
-
-
 
   @Event()
   async 'users.removed'(ctx: Context<{ data: User }>) {

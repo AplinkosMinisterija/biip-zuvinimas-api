@@ -43,10 +43,9 @@ export default class MinioService extends Moleculer.Service {
   }
 
   async started() {
-    const bucketExists: boolean =
-      await this.actions.bucketExists({
-        bucketName: process.env.MINIO_BUCKET,
-      });
+    const bucketExists: boolean = await this.actions.bucketExists({
+      bucketName: process.env.MINIO_BUCKET,
+    });
 
     if (!bucketExists) {
       await this.actions.makeBucket({
@@ -78,10 +77,7 @@ export default class MinioService extends Moleculer.Service {
   }
 
   created() {
-    if (
-      !process.env.MINIO_ACCESSKEY ||
-      !process.env.MINIO_SECRETKEY
-    ) {
+    if (!process.env.MINIO_ACCESSKEY || !process.env.MINIO_SECRETKEY) {
       this.broker.fatal('MINIO is not configured');
     }
   }

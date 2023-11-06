@@ -2,10 +2,10 @@ name: Continuous integration
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
 
-permissions: { }
+permissions: {}
 
 jobs:
   build-test:
@@ -19,7 +19,7 @@ jobs:
       postgres:
         image: postgis/postgis:14-master
         ports:
-          - "5331:5432"
+          - '5331:5432'
         env:
           POSTGRES_HOST: localhost
           POSTGRES_USER: postgres

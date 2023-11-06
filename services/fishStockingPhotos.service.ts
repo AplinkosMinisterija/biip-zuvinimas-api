@@ -39,7 +39,7 @@ export type FishStockingPhoto<
       createActions: {
         create: false,
         createMany: false,
-        update:false
+        update: false,
       },
     }),
   ],
@@ -95,10 +95,7 @@ export default class FishStockingPhotosService extends moleculer.Service {
     },
   })
   async createAction(
-    ctx: Context<
-      NodeJS.ReadableStream,
-      UserAuthMeta & MultipartMeta & { fishStocking: number }
-    >,
+    ctx: Context<NodeJS.ReadableStream, UserAuthMeta & MultipartMeta & { fishStocking: number }>,
   ) {
     if (!['image/png', 'image/jpg', 'image/jpeg'].includes(ctx.meta.mimetype)) {
       throw new moleculer.Errors.MoleculerClientError(

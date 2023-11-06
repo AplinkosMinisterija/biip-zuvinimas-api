@@ -2,12 +2,7 @@
 
 import moleculer, { Context } from 'moleculer';
 import { Action, Method, Service } from 'moleculer-decorators';
-import {
-  COMMON_DEFAULT_SCOPES,
-  COMMON_FIELDS,
-  COMMON_SCOPES,
-  RestrictionType,
-} from '../types';
+import { COMMON_DEFAULT_SCOPES, COMMON_FIELDS, COMMON_SCOPES, RestrictionType } from '../types';
 import { TenantUser, TenantUserRole } from './tenantUsers.service';
 
 import DbConnection from '../mixins/database.mixin';
@@ -223,9 +218,7 @@ export default class TenantsService extends moleculer.Service {
       },
     });
 
-    await Promise.all(
-      tenantUsers.map((tu) => ctx.call('tenantUsers.remove', { id: tu.id })),
-    );
+    await Promise.all(tenantUsers.map((tu) => ctx.call('tenantUsers.remove', { id: tu.id })));
 
     const authGroup = await ctx.call('auth.groups.remove', {
       id: tenant.authGroup,
@@ -257,10 +250,7 @@ export default class TenantsService extends moleculer.Service {
 
     for (const authGroupKey in authGroupsMap) {
       const authGroup = authGroupsMap[authGroupKey];
-      if (
-        authGroup.id !== Number(process.env.FREELANCER_GROUP_ID) &&
-        authGroup.companyCode
-      ) {
+      if (authGroup.id !== Number(process.env.FREELANCER_GROUP_ID) && authGroup.companyCode) {
         await this.createEntity(null, {
           name: authGroup.name,
           email: authGroup.companyEmail,
