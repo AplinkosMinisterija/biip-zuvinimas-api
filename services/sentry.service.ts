@@ -1,7 +1,7 @@
-// @ts-ignore
 import { Integrations } from '@sentry/node';
 import moleculer from 'moleculer';
 import { Service } from 'moleculer-decorators';
+// @ts-ignore
 import SentryMixin from 'moleculer-sentry';
 
 @Service({
