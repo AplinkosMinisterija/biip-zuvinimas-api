@@ -16,7 +16,8 @@
     "lint": "eslint --ext .js,.ts .",
     "dc:up": "docker compose -p zuvinimas-backend up --build -d",
     "dc:down": "docker compose -p zuvinimas-backend down",
-    "dc:logs": "docker compose -p zuvinimas-backend logs -f"
+    "dc:logs": "docker compose -p zuvinimas-backend logs -f",
+    "prepare": "husky install"
   },
   "keywords": [
     "microservices",
@@ -40,6 +41,7 @@
     "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-prefer-arrow": "^1.2.3",
     "eslint-plugin-prettier": "^4.2.1",
+    "husky": "^8.0.3",
     "jest": "^29.5.0",
     "jest-cli": "^29.5.0",
     "mockdate": "^3.0.5",
