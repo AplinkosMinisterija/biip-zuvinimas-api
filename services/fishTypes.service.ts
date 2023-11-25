@@ -93,6 +93,7 @@ export default class FishTypesService extends moleculer.Service {
       { label: 'skersnukiai' },
       { label: 'plačiakakčiai' },
       { label: 'margieji plačiakakčiai' },
+      { label: 'rykliai'},
     ]);
   }
 }
