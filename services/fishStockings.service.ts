@@ -21,7 +21,7 @@ import {
 import { AuthUserRole, UserAuthMeta } from './api.service';
 // import ExcelJS from 'exceljs';
 import { isEmpty, map } from 'lodash';
-import moleculer, { Context } from 'moleculer';
+import moleculer, { Context, RestSchema } from 'moleculer';
 
 import { DbContextParameters } from 'moleculer-db';
 import ApiGateway from 'moleculer-web';
@@ -46,7 +46,8 @@ export enum FishStockingStatus {
   CANCELED = 'CANCELED',
 }
 
-const BATCH_DATA_EXISTS_QUERY = 'EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NOT NULL AND fb.deleted_at is NULL)';
+const BATCH_DATA_EXISTS_QUERY =
+  'EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NOT NULL AND fb.deleted_at is NULL)';
 
 const getStatusQueries = (maxTime: number) => ({
   [FishStockingStatus.CANCELED]: `canceled_at IS NOT NULL`,
@@ -561,7 +562,7 @@ export default class FishStockingsService extends moleculer.Service {
       }
       return fishStocking;
     }
-    if(ctx.params.batches) {
+    if (ctx.params.batches) {
       await ctx.call('fishBatches.updateBatches', {
         batches: ctx.params.batches,
         fishStocking: Number(ctx.params.id),
@@ -784,10 +785,84 @@ export default class FishStockingsService extends moleculer.Service {
   }
 
   @Action({
+    rest: <RestSchema>{
+      method: 'GET',
+      basePath: '/public',
+      path: '/uetk/statistics',
+    },
+    params: {
+      date: [
+        {
+          type: 'string',
+          optional: true,
+        },
+        {
+          type: 'object',
+          optional: true,
+        },
+      ],
+      fishType: {
+        type: 'number',
+        convert: true,
+        optional: true,
+      },
+    },
+    auth: RestrictionType.PUBLIC,
+  })
+  async getStatisticsForUETK(ctx: Context<{ date: any; fishType: number }>) {
+    const { fishType, date } = ctx.params;
+    const query: any = { fishType };
+
+    if (date) {
+      query.createdAt = date;
+      try {
+        query.createdAt = JSON.parse(date);
+      } catch (err) {}
+    }
+
+    const fishBatches: FishBatch<'fishStocking' | 'fishType'>[] =
+      await ctx.call('fishBatches.find', {
+        query,
+        populate: ['fishStocking', 'fishType'],
+      });
+
+    return fishBatches
+      .reduce((groupedFishBatch, fishBatch) => {
+        const cadastralId = fishBatch?.fishStocking?.location?.cadastral_id;
+        const fishTypeId = fishBatch?.fishType.id;
+        if (!cadastralId) return groupedFishBatch;
+
+        groupedFishBatch[cadastralId] = groupedFishBatch[cadastralId] || {
+          count: 0,
+          cadastralId: cadastralId,
+        };
+
+        groupedFishBatch[cadastralId].count += fishBatch.reviewAmount;
+        groupedFishBatch[cadastralId][fishTypeId] = groupedFishBatch[
+          cadastralId
+        ][fishTypeId] || {
+          count: 0,
+          fishType: { id: fishTypeId, label: fishBatch?.fishType.label },
+        };
+        groupedFishBatch[cadastralId][fishTypeId].count +=
+          fishBatch.reviewAmount;
+        return groupedFishBatch;
+      }, {} as any)
+      .map((groupedFishBatch: { [key: string]: any }) => {
+        const { cadastralId, count, ...rest } = groupedFishBatch;
+
+        return { cadastralId, count, byFishes: Object.values(rest) };
+      });
+  }
+
+  @Action({
     rest: 'GET /export',
   })
   async export(ctx: Context<any>) {
-    const data: any = await ctx.call('fishStockings.find', {...ctx.params, populate: ['assignedTo','reviewedBy', 'batches']});
+    const data: any = await ctx.call('fishStockings.find', {
+      ...ctx.params,
+      populate: ['assignedTo', 'reviewedBy', 'batches'],
+    });
     const mappedData: any[] = [];
     data.map((fishStocking: any) => {
       const fishOrigin =
@@ -795,29 +870,32 @@ export default class FishStockingsService extends moleculer.Service {
           ? fishStocking?.fishOriginCompanyName
           : fishStocking?.fishOriginReservoir;
 
-      const date = fishStocking?.eventTime  || '-';
+      const date = fishStocking?.eventTime || '-';
       const municipality = fishStocking.location.municipality?.name || '-';
       const waterBodyName = fishStocking.location?.name || '-';
       const waterBodyCode = fishStocking.location.cadastral_id || '-';
       const waybillNo = fishStocking.waybillNo || '-';
-      const assignedTo = fishStocking.reviewedBy?.fullName || fishStocking.assignedTo?.fullName ||  '-'
-      const veterinaryApprovalNo =  fishStocking?.veterinaryApprovalNo || '-';
-      for(const batch of fishStocking.batches || []) {
+      const assignedTo =
+        fishStocking.reviewedBy?.fullName ||
+        fishStocking.assignedTo?.fullName ||
+        '-';
+      const veterinaryApprovalNo = fishStocking?.veterinaryApprovalNo || '-';
+      for (const batch of fishStocking.batches || []) {
         mappedData.push({
-           'Įveisimo data': date,
-           'Rajonas': municipality,
-           'Vandens telkinio pavadinimas': waterBodyName,
-           'Telkinio kodas': waterBodyCode,
-           'Žuvų, vėžių rūšis': batch.fishType?.label,
-           'Amžius': batch.fishAge?.label,
-           'Kiekis, vnt.': batch.reviewAmount || 0,
-           'Svoris, kg': batch.reviewWeight || 0,
-           'Žuvys išaugintos': fishOrigin,
-           'Važtaraščio nr.': waybillNo || '',
-           'Atsakingas asmuo': assignedTo || '',
-           'Veterinarinio pažymėjimo Nr.': veterinaryApprovalNo || '',
-         });
-      };
+          'Įveisimo data': date,
+          Rajonas: municipality,
+          'Vandens telkinio pavadinimas': waterBodyName,
+          'Telkinio kodas': waterBodyCode,
+          'Žuvų, vėžių rūšis': batch.fishType?.label,
+          Amžius: batch.fishAge?.label,
+          'Kiekis, vnt.': batch.reviewAmount || 0,
+          'Svoris, kg': batch.reviewWeight || 0,
+          'Žuvys išaugintos': fishOrigin,
+          'Važtaraščio nr.': waybillNo || '',
+          'Atsakingas asmuo': assignedTo || '',
+          'Veterinarinio pažymėjimo Nr.': veterinaryApprovalNo || '',
+        });
+      }
     });
 
     const workbook = XLSX.utils.book_new();
@@ -950,7 +1028,9 @@ export default class FishStockingsService extends moleculer.Service {
       if (filters.fishTypes) {
         const filter = filters.fishTypes;
         query.$raw = {
-          condition: (query?.$raw ? query.$raw.condition + ' AND ' : '' ) + `EXISTS (SELECT 1 FROM jsonb_each("fish_types") AS ft WHERE ft.value::int IN (${filter}))`,
+          condition:
+            (query?.$raw ? query.$raw.condition + ' AND ' : '') +
+            `EXISTS (SELECT 1 FROM jsonb_each("fish_types") AS ft WHERE ft.value::int IN (${filter}))`,
         };
       }
 

@@ -14,6 +14,7 @@ import {
   Table,
 } from '../types';
 import { FishAge } from './fishAges.service';
+import { FishStocking } from './fishStockings.service';
 import { FishType } from './fishTypes.service';
 
 interface Fields extends CommonFields {
@@ -28,8 +29,9 @@ interface Fields extends CommonFields {
 }
 
 interface Populates extends CommonPopulates {
-  fishTypes: FishType;
+  fishType: FishType;
   fishAge: FishAge;
+  fishStocking: FishStocking;
 }
 
 export type FishBatch<
