@@ -5,14 +5,32 @@ import { Action, Service } from 'moleculer-decorators';
 
 import PostgisMixin from 'moleculer-postgis';
 import DbConnection from '../mixins/database.mixin';
-import { CommonFields, CommonPopulates, RestrictionType, Table } from '../types';
+import { RestrictionType, Table } from '../types';
+import { FishAge } from './fishAges.service';
+import { FishType } from './fishTypes.service';
 
-interface Fields extends CommonFields {
+interface Fields {
   id: number;
-  label: string;
+  eventTime: Date;
+  geom: any;
+  location: {
+    name: string;
+    area: number;
+    cadastral_id: string;
+    municipality: {
+      id: number;
+      name: string;
+    };
+  };
+  fishes: {
+    fish_type: FishType<never, 'id' | 'label'>;
+    fish_age: FishAge<never, 'id' | 'label'>;
+    count: number;
+    weight: number;
+  };
 }
 
-interface Populates extends CommonPopulates {}
+interface Populates {}
 
 export type PublishingFishStocking<
   P extends keyof Populates = never,
