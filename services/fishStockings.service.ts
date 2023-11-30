@@ -811,7 +811,11 @@ export default class FishStockingsService extends moleculer.Service {
   })
   async getStatisticsForUETK(ctx: Context<{ date: any; fishType: number }>) {
     const { fishType, date } = ctx.params;
-    const query: any = { fishType };
+    const query: any = { reviewAmount: { $exists: true } };
+
+    if (fishType) {
+      query.fishType = fishType;
+    }
 
     if (date) {
       query.createdAt = date;
@@ -829,7 +833,7 @@ export default class FishStockingsService extends moleculer.Service {
     return fishBatches
       .reduce((groupedFishBatch, fishBatch) => {
         const cadastralId = fishBatch?.fishStocking?.location?.cadastral_id;
-        const fishTypeId = fishBatch?.fishType.id;
+        const fishTypeId = fishBatch?.fishType?.id;
         if (!cadastralId) return groupedFishBatch;
 
         groupedFishBatch[cadastralId] = groupedFishBatch[cadastralId] || {
@@ -838,14 +842,17 @@ export default class FishStockingsService extends moleculer.Service {
         };
 
         groupedFishBatch[cadastralId].count += fishBatch.reviewAmount;
+
         groupedFishBatch[cadastralId][fishTypeId] = groupedFishBatch[
           cadastralId
         ][fishTypeId] || {
           count: 0,
-          fishType: { id: fishTypeId, label: fishBatch?.fishType.label },
+          fishType: { id: fishTypeId, label: fishBatch?.fishType?.label },
         };
+
         groupedFishBatch[cadastralId][fishTypeId].count +=
           fishBatch.reviewAmount;
+
         return groupedFishBatch;
       }, {} as any)
       .map((groupedFishBatch: { [key: string]: any }) => {
