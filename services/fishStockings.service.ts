@@ -795,8 +795,8 @@ export default class FishStockingsService extends moleculer.Service {
       },
     );
 
-    return fishBatches
-      .reduce((groupedFishBatch, fishBatch) => {
+    return Object.values(
+      fishBatches.reduce((groupedFishBatch, fishBatch) => {
         const cadastralId = fishBatch?.fishStocking?.location?.cadastral_id;
         const fishTypeId = fishBatch?.fishType?.id;
         if (!cadastralId) return groupedFishBatch;
@@ -816,20 +816,20 @@ export default class FishStockingsService extends moleculer.Service {
         groupedFishBatch[cadastralId][fishTypeId].count += fishBatch.reviewAmount;
 
         return groupedFishBatch;
-      }, {} as any)
-      .reduce(
-        (
-          groupedFishBatch: { [key: string]: any },
-          currentGroupedFishBatch: { [key: string]: any },
-        ) => {
-          const { cadastralId, count, ...rest } = currentGroupedFishBatch;
+      }, {} as any),
+    ).reduce(
+      (
+        groupedFishBatch: { [key: string]: any },
+        currentGroupedFishBatch: { [key: string]: any },
+      ) => {
+        const { cadastralId, count, ...rest } = currentGroupedFishBatch;
 
-          groupedFishBatch[cadastralId] = { cadastralId, count, byFishes: Object.values(rest) };
+        groupedFishBatch[cadastralId] = { count, byFishes: Object.values(rest) };
 
-          return groupedFishBatch;
-        },
-        {},
-      );
+        return groupedFishBatch;
+      },
+      {},
+    );
   }
 
   @Action({
