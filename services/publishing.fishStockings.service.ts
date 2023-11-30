@@ -7,6 +7,7 @@ import PostgisMixin from 'moleculer-postgis';
 import DbConnection from '../mixins/database.mixin';
 import { RestrictionType, Table } from '../types';
 import { FishAge } from './fishAges.service';
+import { FishStockingStatus } from './fishStockings.service';
 import { FishType } from './fishTypes.service';
 
 interface Fields {
@@ -102,7 +103,18 @@ export default class PublishingFishStockingsService extends moleculer.Service {
     },
     auth: RestrictionType.PUBLIC,
   })
-  getPublicItems(ctx: Context<{}>) {
+  getPublicItems(ctx: Context<{ query: any }>) {
+    ctx.params.query = ctx.params.query || {};
+    if (typeof ctx.params.query === 'string') {
+      try {
+        ctx.params.query = JSON.parse(ctx.params.query);
+      } catch (err) {}
+    }
+
+    ctx.params.query.status = ctx.params.query.status || {
+      $in: [FishStockingStatus.ONGOING, FishStockingStatus.UPCOMING],
+    };
+
     return ctx.call('publishing.fishStockings.list', {
       ...(ctx.params || {}),
       sort: 'eventTime',
