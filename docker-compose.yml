@@ -1,4 +1,4 @@
-version: '3.5'
+version: "3.5"
 
 services:
   postgres:
@@ -13,18 +13,18 @@ services:
       POSTGRES_DB: zuvinimas
       TZ: 'Etc/GMT'
       PGTZ: 'Etc/GMT'
+ 
   redis:
     image: redis:latest
     networks:
       - internal
     ports:
-      - 6581:6379
-
+      - 6141:6379
   minio:
     image: minio/minio:latest
     ports:
-      - 9030:9000
-      - 9031:9001
+      - 9140:9000
+      - 9141:9001
     networks:
       - internal
     environment:
@@ -32,8 +32,10 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
     command: server --console-address :9001 /data
 
+
 networks:
   internal:
+
 
 volumes:
   data:

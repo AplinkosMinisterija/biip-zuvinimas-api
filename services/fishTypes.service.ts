@@ -1,7 +1,7 @@
 'use strict';
 
-import moleculer from 'moleculer';
-import { Method, Service } from 'moleculer-decorators';
+import moleculer, { Context, RestSchema } from 'moleculer';
+import { Action, Method, Service } from 'moleculer-decorators';
 
 import DbConnection from '../mixins/database.mixin';
 import {
@@ -64,6 +64,21 @@ export type FishType<
   },
 })
 export default class FishTypesService extends moleculer.Service {
+  @Action({
+    rest: <RestSchema>{
+      method: 'GET',
+      basePath: '/public/fishTypes',
+      path: '/',
+    },
+    auth: RestrictionType.PUBLIC,
+  })
+  getPublicItems(ctx: Context) {
+    return this.findEntities(ctx, {
+      fields: ['id', 'label'],
+      sort: 'label',
+    });
+  }
+
   @Method
   async seedDB() {
     await this.createEntities(null, [

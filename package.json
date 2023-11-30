@@ -1,5 +1,5 @@
 {
-  "name": "zuvinimas",
+  "name": "biip-zuvinimas-api",
   "version": "1.0.8",
   "description": "My Moleculer-based microservices project",
   "private": true,
@@ -15,9 +15,9 @@
     "test:coverage": "yarn run test --coverage",
     "lint": "eslint --ext .js,.ts .",
     "lint:sarif": "set SARIF_ESLINT_EMBED=true && yarn run lint --format @microsoft/eslint-formatter-sarif --output-file eslint-results.sarif",
-    "dc:up": "docker compose -p zuvinimas-backend up --build -d",
-    "dc:down": "docker compose -p zuvinimas-backend down",
-    "dc:logs": "docker compose -p zuvinimas-backend logs -f",
+    "dc:up": "docker compose -p biip-zuvinimas-api up --build -d",
+    "dc:down": "docker compose -p biip-zuvinimas-api down",
+    "dc:logs": "docker compose -p biip-zuvinimas-api logs -f",
     "prepare": "husky install"
   },
   "keywords": [
@@ -73,6 +73,7 @@
     "moleculer-decorators": "^1.3.0",
     "moleculer-knex-filters": "github:DadPatch/moleculer-knex-filters",
     "moleculer-minio": "github:zeckon/moleculer-minio",
+    "moleculer-postgis": "^0.2.7",
     "moleculer-sentry": "^2.0.0",
     "moleculer-web": "^0.10.5",
     "nats": "^2.13.1",
