@@ -847,7 +847,7 @@ export default class FishStockingsService extends moleculer.Service {
   async export(ctx: Context<any>) {
     const data: any = await ctx.call('fishStockings.find', {
       ...ctx.params,
-      populate: ['assignedTo', 'reviewedBy', 'batches'],
+      populate: ['assignedTo', 'reviewedBy', 'batches', 'status'],
     });
     const mappedData: any[] = [];
     data.map((fishStocking: FishStocking<'reviewedBy'|'assignedTo' |'batches'>) => {
