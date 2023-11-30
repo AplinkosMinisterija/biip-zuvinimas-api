@@ -14,11 +14,7 @@ export default function (opts: any = {}) {
     },
   };
 
-  opts = _.defaultsDeep(
-    opts,
-    { adapter, createActions: { replace: false } },
-    { cache: false },
-  );
+  opts = _.defaultsDeep(opts, { adapter, createActions: { replace: false } }, { cache: false });
 
   const schema = {
     mixins: [DbService(opts), filtersMixin()],
@@ -33,9 +29,7 @@ export default function (opts: any = {}) {
       filterQueryIds(ids: Array<number>, queryIds?: any) {
         if (!queryIds) return ids;
 
-        queryIds = (Array.isArray(queryIds) ? queryIds : [queryIds]).map(
-          (id: any) => parseInt(id),
-        );
+        queryIds = (Array.isArray(queryIds) ? queryIds : [queryIds]).map((id: any) => parseInt(id));
 
         return ids.filter((id: number) => queryIds.indexOf(id) >= 0);
       },

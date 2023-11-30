@@ -5,10 +5,13 @@ import { Method, Service } from 'moleculer-decorators';
 
 import DbConnection from '../mixins/database.mixin';
 import {
-  CommonFields,
-  CommonPopulates, COMMON_DEFAULT_SCOPES,
+  COMMON_DEFAULT_SCOPES,
   COMMON_FIELDS,
-  COMMON_SCOPES, RestrictionType, Table
+  COMMON_SCOPES,
+  CommonFields,
+  CommonPopulates,
+  RestrictionType,
+  Table,
 } from '../types';
 
 interface Fields extends CommonFields {
@@ -25,12 +28,14 @@ export type FishType<
 
 @Service({
   name: 'fishTypes',
-  mixins: [DbConnection({
-    collection: 'fishTypes',
-    createActions: {
-      createMany: false,
-    },
-  })],
+  mixins: [
+    DbConnection({
+      collection: 'fishTypes',
+      createActions: {
+        createMany: false,
+      },
+    }),
+  ],
   settings: {
     fields: {
       id: {

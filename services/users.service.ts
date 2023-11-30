@@ -198,10 +198,7 @@ export default class UsersService extends moleculer.Service {
           if (ctx.params.filter.role) {
             $raw = {
               condition: `?? @> ?::jsonb`,
-              bindings: [
-                'tenants',
-                { [ctx.params.filter.tenantId]: ctx.params.filter.role },
-              ],
+              bindings: ['tenants', { [ctx.params.filter.tenantId]: ctx.params.filter.role }],
             };
           } else {
             $raw = {
@@ -228,9 +225,7 @@ export default class UsersService extends moleculer.Service {
       phone: 'string|optional',
     },
   })
-  async updateMyProfile(
-    ctx: Context<{ email?: string; phone?: string }, UserAuthMeta>,
-  ) {
+  async updateMyProfile(ctx: Context<{ email?: string; phone?: string }, UserAuthMeta>) {
     if (!ctx.meta.user) {
       throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
         error: 'Not logged in',
@@ -385,7 +380,7 @@ export default class UsersService extends moleculer.Service {
       lastName,
       email,
       phone,
-      isFreelancer: true
+      isFreelancer: true,
     });
   }
 
@@ -422,12 +417,9 @@ export default class UsersService extends moleculer.Service {
       });
     }
 
-    const aadUsers: { rows: string[] } = await ctx.call(
-      'auth.public.getUsersInGroup',
-      {
-        groupId: process.env.AUTH_AAD_GROUP_ID,
-      },
-    );
+    const aadUsers: { rows: string[] } = await ctx.call('auth.public.getUsersInGroup', {
+      groupId: process.env.AUTH_AAD_GROUP_ID,
+    });
     result.push({
       id: 'AAD',
       name: 'Aplinkos apsaugos departamentas prie Aplinkos ministerijos',

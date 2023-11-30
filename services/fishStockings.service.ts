@@ -2,11 +2,7 @@
 
 import { add, endOfDay, isAfter, isBefore, startOfDay, sub } from 'date-fns';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
-import {
-  GeomFeatureCollection,
-  coordinatesToGeometry,
-  geometryToGeom,
-} from '../modules/geometry';
+import { GeomFeatureCollection, coordinatesToGeometry, geometryToGeom } from '../modules/geometry';
 import {
   COMMON_DEFAULT_SCOPES,
   COMMON_FIELDS,
@@ -63,9 +59,7 @@ const isCanceled = (fishStocking: any) => {
 };
 
 const isReviewed = (fishStocking: any, batches: FishBatch[]) => {
-  const batchesDataNotFilled = batches?.some(
-    (batch: any) => batch.reviewAmount === null,
-  );
+  const batchesDataNotFilled = batches?.some((batch: any) => batch.reviewAmount === null);
   return !batchesDataNotFilled;
 };
 
@@ -246,17 +240,11 @@ export type FishStocking<
         required: true,
         virtual: true,
         default: () => [],
-        async populate(
-          ctx: Context,
-          _values: any,
-          fishStockings: FishStocking[],
-        ) {
+        async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
           const fishBatches: FishBatch[] = await ctx.call('fishBatches.find', {
             query: {
               fishStocking: {
-                $in: fishStockings.map(
-                  (fishStocking: FishStocking) => fishStocking.id,
-                ),
+                $in: fishStockings.map((fishStocking: FishStocking) => fishStocking.id),
               },
             },
             populate: ['fishType', 'fishAge'],
@@ -269,9 +257,7 @@ export type FishStocking<
             batchesByStocking[fishBatch.fishStocking].push(fishBatch);
           });
 
-          return fishStockings.map(
-            (fishStocking) => batchesByStocking[fishStocking.id],
-          );
+          return fishStockings.map((fishStocking) => batchesByStocking[fishStocking.id]);
         },
       },
       assignedTo: {
@@ -320,11 +306,7 @@ export type FishStocking<
         required: true,
         virtual: true,
         default: () => [],
-        async populate(
-          ctx: Context,
-          _values: any,
-          fishStockings: FishStocking[],
-        ) {
+        async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
           return await Promise.all(
             fishStockings.map(async (fishStocking) =>
               ctx.call('fishStockingPhotos.find', {
@@ -354,11 +336,7 @@ export type FishStocking<
         columnType: 'integer',
         columnName: 'assignedToInspectorId',
         required: false,
-        async populate(
-          ctx: Context,
-          _values: any,
-          fishStockings: FishStocking[],
-        ) {
+        async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
           return await Promise.all(
             fishStockings.map(async (fishStocking: any) => {
               if (!fishStocking.assignedToInspectorId) {
@@ -395,17 +373,11 @@ export type FishStocking<
         required: true,
         virtual: true,
         default: () => [],
-        async populate(
-          ctx: Context,
-          _values: any,
-          fishStockings: FishStocking[],
-        ) {
+        async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
           const fishBatches: FishBatch[] = await ctx.call('fishBatches.find', {
             query: {
               fishStocking: {
-                $in: fishStockings.map(
-                  (fishStocking: FishStocking) => fishStocking.id,
-                ),
+                $in: fishStockings.map((fishStocking: FishStocking) => fishStocking.id),
               },
             },
           });
@@ -419,12 +391,7 @@ export type FishStocking<
 
           const settings: Setting = await ctx.call('settings.getSettings');
           return fishStockings.map((fishStocking) =>
-            this.getStatus(
-              ctx,
-              fishStocking,
-              batchesByStocking[fishStocking.id],
-              settings,
-            ),
+            this.getStatus(ctx, fishStocking, batchesByStocking[fishStocking.id], settings),
           );
         },
       },
@@ -436,14 +403,11 @@ export type FishStocking<
           if (area && area > 50) {
             return true;
           }
-          const mandatoryLocation = await ctx.call(
-            'mandatoryLocations.findOne',
-            {
-              filter: {
-                cadastral_id: entity.location.cadastral_id,
-              },
+          const mandatoryLocation = await ctx.call('mandatoryLocations.findOne', {
+            filter: {
+              cadastral_id: entity.location.cadastral_id,
             },
-          );
+          });
           return !!mandatoryLocation;
         },
       },
@@ -611,8 +575,7 @@ export default class FishStockingsService extends moleculer.Service {
         municipality: fishStocking.location.municipality.id,
       },
     });
-    const emailsToNotify: Array<string> =
-      users?.rows?.map((i: any) => i.email) || [];
+    const emailsToNotify: Array<string> = users?.rows?.map((i: any) => i.email) || [];
     if (emailsToNotify.length) {
       await ctx.call('mail.sendFishStockingUpdateEmail', {
         emails: emailsToNotify,
@@ -883,9 +846,7 @@ export default class FishStockingsService extends moleculer.Service {
       const waterBodyCode = fishStocking.location.cadastral_id || '-';
       const waybillNo = fishStocking.waybillNo || '-';
       const assignedTo =
-        fishStocking.reviewedBy?.fullName ||
-        fishStocking.assignedTo?.fullName ||
-        '-';
+        fishStocking.reviewedBy?.fullName || fishStocking.assignedTo?.fullName || '-';
       const veterinaryApprovalNo = fishStocking?.veterinaryApprovalNo || '-';
       for (const batch of fishStocking.batches || []) {
         mappedData.push({
@@ -950,10 +911,7 @@ export default class FishStockingsService extends moleculer.Service {
         throw new moleculer.Errors.ValidationError(err.message);
       }
     } else if (id) {
-      const fishStocking: FishStocking = await ctx.call(
-        'fishStockings.resolve',
-        { id },
-      );
+      const fishStocking: FishStocking = await ctx.call('fishStockings.resolve', { id });
       if (!fishStocking.geom) {
         throw new moleculer.Errors.ValidationError('No geometry');
       }
@@ -984,9 +942,7 @@ export default class FishStockingsService extends moleculer.Service {
       try {
         const geomItem = reviewLocationGeom.features[0];
         const value = geometryToGeom(geomItem.geometry);
-        ctx.params.reviewLocation = table.client.raw(
-          `ST_GeomFromText(${value},3346)`,
-        );
+        ctx.params.reviewLocation = table.client.raw(`ST_GeomFromText(${value},3346)`);
       } catch (err) {
         throw new moleculer.Errors.ValidationError(err.message);
       }
@@ -995,12 +951,7 @@ export default class FishStockingsService extends moleculer.Service {
   }
 
   @Method
-  getStatus(
-    ctx: Context,
-    fishStocking: FishStocking,
-    batches: FishBatch[],
-    settings: Setting,
-  ) {
+  getStatus(ctx: Context, fishStocking: FishStocking, batches: FishBatch[], settings: Setting) {
     if (isCanceled(fishStocking)) {
       return FishStockingStatus.CANCELED;
     } else if (isInspected(fishStocking, batches)) {
@@ -1028,9 +979,7 @@ export default class FishStockingsService extends moleculer.Service {
 
     if (ctx.params.filter) {
       filters =
-        typeof ctx.params.filter === 'string'
-          ? JSON.parse(ctx.params.filter)
-          : ctx.params.filter;
+        typeof ctx.params.filter === 'string' ? JSON.parse(ctx.params.filter) : ctx.params.filter;
 
       if (filters.fishTypes) {
         const filter = filters.fishTypes;
@@ -1085,9 +1034,7 @@ export default class FishStockingsService extends moleculer.Service {
       if (filters.status) {
         const settings: Setting = await ctx.call('settings.getSettings');
 
-        const statusQueries: any = getStatusQueries(
-          settings.maxTimeForRegistration,
-        );
+        const statusQueries: any = getStatusQueries(settings.maxTimeForRegistration);
 
         let conditions = '';
         map(filters.status, (status) => {
@@ -1170,16 +1117,13 @@ export default class FishStockingsService extends moleculer.Service {
   @Method
   async beforeDelete(ctx: Context<any, UserAuthMeta>) {
     if (ctx.meta.user) {
-      const fishStocking: FishStocking[] = await ctx.call(
-        'fishStockings.find',
-        {
-          query: {
-            id: ctx.params.id,
-            tenantId: ctx.meta.profile || null,
-            createdBy: ctx.meta.user.id,
-          },
+      const fishStocking: FishStocking[] = await ctx.call('fishStockings.find', {
+        query: {
+          id: ctx.params.id,
+          tenantId: ctx.meta.profile || null,
+          createdBy: ctx.meta.user.id,
         },
-      );
+      });
       if (!fishStocking[0]) {
         throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
           error: 'Unauthorized',
@@ -1225,15 +1169,11 @@ export default class FishStockingsService extends moleculer.Service {
           fishTypes[fb.id] = fb.fishType.id;
         }
 
-        $set.fishTypes = table.client.raw(
-          `fish_types || '${JSON.stringify(fishTypes)}'::jsonb`,
-        );
+        $set.fishTypes = table.client.raw(`fish_types || '${JSON.stringify(fishTypes)}'::jsonb`);
         break;
 
       case 'remove':
-        $set.fishTypes = table.client.raw(
-          `fish_types - '${fishBatches[0].id}'`,
-        );
+        $set.fishTypes = table.client.raw(`fish_types - '${fishBatches[0].id}'`);
         break;
     }
 
