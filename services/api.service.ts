@@ -28,6 +28,19 @@ export enum AuthUserRole {
   settings: {
     port: process.env.PORT || 3000,
     path: '/zuvinimasnew',
+
+    // Global CORS settings for all routes
+    cors: {
+      // Configures the Access-Control-Allow-Origin CORS header.
+      origin: '*',
+      // Configures the Access-Control-Allow-Methods CORS header.
+      methods: ['GET', 'OPTIONS', 'POST', 'PUT', 'DELETE'],
+      // Configures the Access-Control-Allow-Headers CORS header.
+      allowedHeaders: '*',
+      // Configures the Access-Control-Max-Age CORS header.
+      maxAge: 3600,
+    },
+    
     routes: [
       {
         path: '',

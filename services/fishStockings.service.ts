@@ -17,7 +17,7 @@ import {
 import { AuthUserRole, UserAuthMeta } from './api.service';
 // import ExcelJS from 'exceljs';
 import { isEmpty, map } from 'lodash';
-import moleculer, { Context } from 'moleculer';
+import moleculer, { Context, RestSchema } from 'moleculer';
 
 import { DbContextParameters } from 'moleculer-db';
 import ApiGateway from 'moleculer-web';
@@ -745,6 +745,91 @@ export default class FishStockingsService extends moleculer.Service {
       } OR ${queries[FishStockingStatus.INSPECTED]})`,
     );
     return Number(response.rows[0].sum);
+  }
+
+  @Action({
+    rest: <RestSchema>{
+      method: 'GET',
+      basePath: '/public',
+      path: '/uetk/statistics',
+    },
+    params: {
+      date: [
+        {
+          type: 'string',
+          optional: true,
+        },
+        {
+          type: 'object',
+          optional: true,
+        },
+      ],
+      fishType: {
+        type: 'number',
+        convert: true,
+        optional: true,
+      },
+    },
+    auth: RestrictionType.PUBLIC,
+  })
+  async getStatisticsForUETK(ctx: Context<{ date: any; fishType: number }>) {
+    const { fishType, date } = ctx.params;
+    const query: any = { reviewAmount: { $exists: true } };
+
+    if (fishType) {
+      query.fishType = fishType;
+    }
+
+    if (date) {
+      query.createdAt = date;
+      try {
+        query.createdAt = JSON.parse(date);
+      } catch (err) {}
+    }
+
+    const fishBatches: FishBatch<'fishStocking' | 'fishType'>[] = await ctx.call(
+      'fishBatches.find',
+      {
+        query,
+        populate: ['fishStocking', 'fishType'],
+      },
+    );
+
+    return Object.values(
+      fishBatches.reduce((groupedFishBatch, fishBatch) => {
+        const cadastralId = fishBatch?.fishStocking?.location?.cadastral_id;
+        const fishTypeId = fishBatch?.fishType?.id;
+        if (!cadastralId) return groupedFishBatch;
+
+        groupedFishBatch[cadastralId] = groupedFishBatch[cadastralId] || {
+          count: 0,
+          cadastralId: cadastralId,
+        };
+
+        groupedFishBatch[cadastralId].count += fishBatch.reviewAmount;
+
+        groupedFishBatch[cadastralId][fishTypeId] = groupedFishBatch[cadastralId][fishTypeId] || {
+          count: 0,
+          fishType: { id: fishTypeId, label: fishBatch?.fishType?.label },
+        };
+
+        groupedFishBatch[cadastralId][fishTypeId].count += fishBatch.reviewAmount;
+
+        return groupedFishBatch;
+      }, {} as any),
+    ).reduce(
+      (
+        groupedFishBatch: { [key: string]: any },
+        currentGroupedFishBatch: { [key: string]: any },
+      ) => {
+        const { cadastralId, count, ...rest } = currentGroupedFishBatch;
+
+        groupedFishBatch[cadastralId] = { count, byFishes: Object.values(rest) };
+
+        return groupedFishBatch;
+      },
+      {},
+    );
   }
 
   @Action({
