@@ -787,11 +787,13 @@ export default class FishStockingsService extends moleculer.Service {
       } catch (err) {}
     }
 
-    const fishBatches: FishBatch<'fishStocking' | 'fishType'>[] =
-      await ctx.call('fishBatches.find', {
+    const fishBatches: FishBatch<'fishStocking' | 'fishType'>[] = await ctx.call(
+      'fishBatches.find',
+      {
         query,
         populate: ['fishStocking', 'fishType'],
-      });
+      },
+    );
 
     return fishBatches
       .reduce((groupedFishBatch, fishBatch) => {
@@ -806,23 +808,28 @@ export default class FishStockingsService extends moleculer.Service {
 
         groupedFishBatch[cadastralId].count += fishBatch.reviewAmount;
 
-        groupedFishBatch[cadastralId][fishTypeId] = groupedFishBatch[
-          cadastralId
-        ][fishTypeId] || {
+        groupedFishBatch[cadastralId][fishTypeId] = groupedFishBatch[cadastralId][fishTypeId] || {
           count: 0,
           fishType: { id: fishTypeId, label: fishBatch?.fishType?.label },
         };
 
-        groupedFishBatch[cadastralId][fishTypeId].count +=
-          fishBatch.reviewAmount;
+        groupedFishBatch[cadastralId][fishTypeId].count += fishBatch.reviewAmount;
 
         return groupedFishBatch;
       }, {} as any)
-      .map((groupedFishBatch: { [key: string]: any }) => {
-        const { cadastralId, count, ...rest } = groupedFishBatch;
+      .reduce(
+        (
+          groupedFishBatch: { [key: string]: any },
+          currentGroupedFishBatch: { [key: string]: any },
+        ) => {
+          const { cadastralId, count, ...rest } = currentGroupedFishBatch;
 
-        return { cadastralId, count, byFishes: Object.values(rest) };
-      });
+          groupedFishBatch[cadastralId] = { cadastralId, count, byFishes: Object.values(rest) };
+
+          return groupedFishBatch;
+        },
+        {},
+      );
   }
 
   @Action({
