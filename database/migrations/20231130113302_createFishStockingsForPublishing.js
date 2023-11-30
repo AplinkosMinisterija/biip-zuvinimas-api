@@ -31,21 +31,21 @@ exports.up = function (knex) {
             s.id,
             s.event_time,
             s.geom,
-            s.location,
+            s.location::json,
             fb.fishes,
             CASE
               WHEN NOW() < date_trunc('day', s.event_time + '00:00:00') THEN 'UPCOMING'
               ELSE 'ONGOING'
             END AS "status"
           FROM
-            fish_stockings s
+            public.fish_stockings s
             LEFT JOIN fb ON fb.fish_stocking_id = s.id
           WHERE
             NOT EXISTS (
               SELECT
                 1
               FROM
-                fish_batches fb
+                public.fish_batches fb
               WHERE
                 fb.fish_stocking_id = s.id
                 AND fb.review_amount IS NOT NULL
