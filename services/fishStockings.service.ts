@@ -15,7 +15,6 @@ import {
   Table,
 } from '../types';
 import { AuthUserRole, UserAuthMeta } from './api.service';
-// import ExcelJS from 'exceljs';
 import { isEmpty, map } from 'lodash';
 import moleculer, { Context, RestSchema } from 'moleculer';
 
@@ -41,6 +40,15 @@ export enum FishStockingStatus {
   INSPECTED = 'INSPECTED',
   CANCELED = 'CANCELED',
 }
+
+const statusLabels = {
+  [FishStockingStatus.UPCOMING]: "Nauja",
+  [FishStockingStatus.ONGOING]: "Įžuvinama",
+  [FishStockingStatus.CANCELED]: "Atšaukta",
+  [FishStockingStatus.FINISHED]: "Įžuvinta",
+  [FishStockingStatus.INSPECTED]: "Patikrinta",
+  [FishStockingStatus.NOT_FINISHED]: "Neužbaigta"
+};
 
 const BATCH_DATA_EXISTS_QUERY =
   'EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NOT NULL AND fb.deleted_at is NULL)';
@@ -142,6 +150,7 @@ interface Fields extends CommonFields {
   coordinates?: any;
   oldId: number;
   fishTypes: any;
+  status: FishStockingStatus
 }
 
 interface Populates extends CommonPopulates {
@@ -838,10 +847,10 @@ export default class FishStockingsService extends moleculer.Service {
   async export(ctx: Context<any>) {
     const data: any = await ctx.call('fishStockings.find', {
       ...ctx.params,
-      populate: ['assignedTo', 'reviewedBy', 'batches'],
+      populate: ['assignedTo', 'reviewedBy', 'batches', 'status'],
     });
     const mappedData: any[] = [];
-    data.map((fishStocking: any) => {
+    data.map((fishStocking: FishStocking<'reviewedBy'|'assignedTo' |'batches'>) => {
       const fishOrigin =
         fishStocking.fishOrigin === 'GROWN'
           ? fishStocking?.fishOriginCompanyName
@@ -855,6 +864,7 @@ export default class FishStockingsService extends moleculer.Service {
       const assignedTo =
         fishStocking.reviewedBy?.fullName || fishStocking.assignedTo?.fullName || '-';
       const veterinaryApprovalNo = fishStocking?.veterinaryApprovalNo || '-';
+      const status = fishStocking.status;
       for (const batch of fishStocking.batches || []) {
         mappedData.push({
           'Įveisimo data': date,
@@ -863,12 +873,15 @@ export default class FishStockingsService extends moleculer.Service {
           'Telkinio kodas': waterBodyCode,
           'Žuvų, vėžių rūšis': batch.fishType?.label,
           Amžius: batch.fishAge?.label,
+          'Planuojamas kiekis, vnt': batch.amount || 0,
           'Kiekis, vnt.': batch.reviewAmount || 0,
+          'Planuojamas svoris, kg' : batch.weight || 0,
           'Svoris, kg': batch.reviewWeight || 0,
           'Žuvys išaugintos': fishOrigin,
           'Važtaraščio nr.': waybillNo || '',
           'Atsakingas asmuo': assignedTo || '',
           'Veterinarinio pažymėjimo Nr.': veterinaryApprovalNo || '',
+          'Būsena': statusLabels[status],
         });
       }
     });
