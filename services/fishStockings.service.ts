@@ -42,11 +42,11 @@ export enum FishStockingStatus {
 }
 
 const statusLabels = {
-  [FishStockingStatus.UPCOMING]: "Būsimas įžuvinimas",
-  [FishStockingStatus.ONGOING]: "Šiandien vykstantis įžuvinimas",
+  [FishStockingStatus.UPCOMING]: "Nauja",
+  [FishStockingStatus.ONGOING]: "Įžuvinama",
   [FishStockingStatus.CANCELED]: "Atšaukta",
-  [FishStockingStatus.FINISHED]: "Ižuvinta",
-  [FishStockingStatus.INSPECTED]: "Ižuvinta",
+  [FishStockingStatus.FINISHED]: "Įžuvinta",
+  [FishStockingStatus.INSPECTED]: "Patikrinta",
   [FishStockingStatus.NOT_FINISHED]: "Neužbaigta"
 };
 
