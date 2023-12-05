@@ -4,6 +4,7 @@ import moleculer, { Context } from 'moleculer';
 import { Action, Method, Service } from 'moleculer-decorators';
 import ApiGateway from 'moleculer-web';
 import { RequestMessage, RestrictionType, throwNoRightsError } from '../types';
+import { FREELANCER_PROFILE_ID } from './tenantUsers.service';
 import { User } from './users.service';
 
 export interface UserAuthMeta {
@@ -40,7 +41,7 @@ export enum AuthUserRole {
       // Configures the Access-Control-Max-Age CORS header.
       maxAge: 3600,
     },
-    
+
     routes: [
       {
         path: '',
@@ -163,7 +164,7 @@ export default class ApiService extends moleculer.Service {
         },
       });
       const profile = req.headers['x-profile'] as any;
-      if (!!profile) {
+      if (!!profile && profile !== FREELANCER_PROFILE_ID) {
         const currentTenantUser = await ctx.call('tenantUsers.findOne', {
           query: {
             tenant: profile,
