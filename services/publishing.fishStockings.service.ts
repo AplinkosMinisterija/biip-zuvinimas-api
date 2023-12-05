@@ -103,7 +103,7 @@ export default class PublishingFishStockingsService extends moleculer.Service {
     },
     auth: RestrictionType.PUBLIC,
   })
-  async getPublicItems(ctx: Context<{ query: any }>) {
+  getPublicItems(ctx: Context<{ query: any }>) {
     ctx.params.query = ctx.params.query || {};
 
     if (typeof ctx.params.query === 'string') {
