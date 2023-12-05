@@ -167,7 +167,7 @@ export default class ApiService extends moleculer.Service {
       if (!!profile && profile !== FREELANCER_PROFILE_ID) {
         const currentTenantUser = await ctx.call('tenantUsers.findOne', {
           query: {
-            tenant: profile,
+            tenant: Number(profile),
             user: user.id,
           },
         });
