@@ -103,17 +103,52 @@ export default class PublishingFishStockingsService extends moleculer.Service {
     },
     auth: RestrictionType.PUBLIC,
   })
-  getPublicItems(ctx: Context<{ query: any }>) {
+  async getPublicItems(ctx: Context<{ query: any }>) {
     ctx.params.query = ctx.params.query || {};
+
     if (typeof ctx.params.query === 'string') {
       try {
         ctx.params.query = JSON.parse(ctx.params.query);
       } catch (err) {}
     }
 
-    ctx.params.query.status = ctx.params.query.status || {
+    ctx.params.query.status = ctx.params?.query?.status || {
       $in: [FishStockingStatus.ONGOING, FishStockingStatus.UPCOMING],
     };
+
+    if (ctx.params?.query?.municipalityId) {
+      const municipalityIds = !!ctx?.params?.query?.municipalityId?.$in
+        ? ctx.params.query.municipalityId.$in
+        : [ctx.params.query.municipalityId];
+
+      ctx.params.query.$raw = {
+        condition: `"location"::jsonb->'municipality'->>'id' IN (${municipalityIds
+          .map((_: any) => '?')
+          .join(',')})`,
+        bindings: [...municipalityIds],
+      };
+
+      delete ctx.params?.query?.municipalityId;
+    }
+
+    if (ctx.params?.query?.cadastralId) {
+      const cadastralIds = !!ctx?.params?.query?.cadastralId?.$in
+        ? ctx.params.query.cadastralId.$in
+        : [ctx.params.query.cadastralId];
+      const queryPart = cadastralIds.map((_: any) => '?').join(',');
+
+      if (!ctx.params.query.$raw) {
+        ctx.params.query.$raw = {
+          condition: `"location"::jsonb->>'cadastral_id' IN (${queryPart})`,
+          bindings: [...cadastralIds],
+        };
+      } else {
+        ctx.params.query.$raw.condition += ` AND "location"::jsonb->>'cadastral_id' IN  (${queryPart})`;
+        ctx.params.query.$raw.bindings = [...ctx.params.query.$raw.bindings, ...cadastralIds];
+      }
+
+      delete ctx.params?.query?.cadastralId;
+    }
 
     return ctx.call('publishing.fishStockings.list', {
       ...(ctx.params || {}),
