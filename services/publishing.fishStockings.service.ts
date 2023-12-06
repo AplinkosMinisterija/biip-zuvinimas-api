@@ -141,7 +141,7 @@ export default class PublishingFishStockingsService extends moleculer.Service {
           condition: `"location"::jsonb->>'cadastral_id' IN (${cadastralIds
             .map((_: any) => '?')
             .join(',')})`,
-          bindings: cadastralIds.map((id: string) => Number(id)),
+          bindings: cadastralIds.map((id: string) => `${id}`),
         },
       };
     }
