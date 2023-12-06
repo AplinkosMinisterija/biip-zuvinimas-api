@@ -121,33 +121,29 @@ export default class PublishingFishStockingsService extends moleculer.Service {
         ? ctx.params.query.municipalityId.$in
         : [ctx.params.query.municipalityId];
 
-      ctx.params.query.$raw = {
-        condition: `"location"::jsonb->'municipality'->>'id' IN (${municipalityIds
-          .map((_: any) => '?')
-          .join(',')})`,
-        bindings: [...municipalityIds],
+      ctx.params.query.municipalityId = {
+        $raw: {
+          condition: `"location"::jsonb->'municipality'->>'id' IN (${municipalityIds
+            .map((_: any) => '?')
+            .join(',')})`,
+          bindings: [...municipalityIds],
+        },
       };
-
-      delete ctx.params?.query?.municipalityId;
     }
 
     if (ctx.params?.query?.cadastralId) {
       const cadastralIds = !!ctx?.params?.query?.cadastralId?.$in
         ? ctx.params.query.cadastralId.$in
         : [ctx.params.query.cadastralId];
-      const queryPart = cadastralIds.map((_: any) => '?').join(',');
 
-      if (!ctx.params.query.$raw) {
-        ctx.params.query.$raw = {
-          condition: `"location"::jsonb->>'cadastral_id' IN (${queryPart})`,
+      ctx.params.query.cadastralId = {
+        $raw: {
+          condition: `"location"::jsonb->>'cadastral_id' IN (${cadastralIds
+            .map((_: any) => '?')
+            .join(',')})`,
           bindings: [...cadastralIds],
-        };
-      } else {
-        ctx.params.query.$raw.condition += ` AND "location"::jsonb->>'cadastral_id' IN  (${queryPart})`;
-        ctx.params.query.$raw.bindings = [...ctx.params.query.$raw.bindings, ...cadastralIds];
-      }
-
-      delete ctx.params?.query?.cadastralId;
+        },
+      };
     }
 
     return ctx.call('publishing.fishStockings.list', {
