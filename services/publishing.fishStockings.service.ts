@@ -105,15 +105,46 @@ export default class PublishingFishStockingsService extends moleculer.Service {
   })
   getPublicItems(ctx: Context<{ query: any }>) {
     ctx.params.query = ctx.params.query || {};
+
     if (typeof ctx.params.query === 'string') {
       try {
         ctx.params.query = JSON.parse(ctx.params.query);
       } catch (err) {}
     }
 
-    ctx.params.query.status = ctx.params.query.status || {
+    ctx.params.query.status = ctx.params?.query?.status || {
       $in: [FishStockingStatus.ONGOING, FishStockingStatus.UPCOMING],
     };
+
+    if (ctx.params?.query?.municipalityId) {
+      const municipalityIds = !!ctx?.params?.query?.municipalityId?.$in
+        ? ctx.params.query.municipalityId.$in
+        : [ctx.params.query.municipalityId];
+
+      ctx.params.query.municipalityId = {
+        $raw: {
+          condition: `"location"::jsonb->'municipality'->>'id' IN (${municipalityIds
+            .map((_: any) => '?')
+            .join(',')})`,
+          bindings: municipalityIds.map((id: string) => Number(id)),
+        },
+      };
+    }
+
+    if (ctx.params?.query?.cadastralId) {
+      const cadastralIds = !!ctx?.params?.query?.cadastralId?.$in
+        ? ctx.params.query.cadastralId.$in
+        : [ctx.params.query.cadastralId];
+
+      ctx.params.query.cadastralId = {
+        $raw: {
+          condition: `"location"::jsonb->>'cadastral_id' IN (${cadastralIds
+            .map((_: any) => '?')
+            .join(',')})`,
+          bindings: cadastralIds.map((id: string) => `${id}`),
+        },
+      };
+    }
 
     return ctx.call('publishing.fishStockings.list', {
       ...(ctx.params || {}),
