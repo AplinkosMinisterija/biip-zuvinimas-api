@@ -95,8 +95,8 @@ export default class FishTypesService extends moleculer.Service {
   })
   getPublicItems(ctx: Context) {
     return this.findEntities(ctx, {
-      fields: ['id', 'label', 'priority'],
-      sort: 'label'
+      fields: ['id', 'label'],
+      sort: 'label',
     });
   }
 
