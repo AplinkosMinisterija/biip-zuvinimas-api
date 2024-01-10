@@ -14,6 +14,8 @@ import {
   Table,
 } from '../types';
 
+const Cron = require('@r2d2bzh/moleculer-cron');
+
 interface Fields extends CommonFields {
   id: number;
   label: string;
@@ -35,6 +37,7 @@ export type FishType<
         createMany: false,
       },
     }),
+    Cron,
   ],
   settings: {
     fields: {
@@ -44,23 +47,41 @@ export type FishType<
         secure: true,
       },
       label: 'string|required',
+      priority: 'number',
       ...COMMON_FIELDS,
     },
     scopes: {
       ...COMMON_SCOPES,
     },
-    actions: {
-      remove: {
-        types: [RestrictionType.ADMIN],
-      },
-      create: {
-        types: [RestrictionType.ADMIN],
-      },
-      update: {
-        types: [RestrictionType.ADMIN],
-      },
-    },
     defaultScopes: [...COMMON_DEFAULT_SCOPES],
+  },
+  actions: {
+    remove: {
+      auth: RestrictionType.ADMIN,
+    },
+    create: {
+      auth: RestrictionType.ADMIN,
+    },
+    update: {
+      auth: RestrictionType.ADMIN,
+    },
+  },
+  crons: [
+    {
+      name: 'updatePriority',
+      cronTime: '0 0 * * 0',
+      async onTick() {
+        return await this.call('fishTypes.updatePriority');
+      },
+      timeZone: 'Europe/Vilnius',
+    },
+  ],
+  hooks: {
+    before: {
+      list: ['sortItems'],
+      find: ['sortItems'],
+      all: ['sortItems'],
+    },
   },
 })
 export default class FishTypesService extends moleculer.Service {
@@ -109,5 +130,26 @@ export default class FishTypesService extends moleculer.Service {
       { label: 'plačiakakčiai' },
       { label: 'margieji plačiakakčiai' },
     ]);
+  }
+
+  @Method
+  async sortItems(ctx: Context<any>) {
+    ctx.params.sort = ctx.params.sort || '-priority,label';
+  }
+
+  @Action({
+    rest: 'PATCH /priority',
+    auth: RestrictionType.ADMIN
+  })
+  async updatePriority(ctx: Context) {
+    const fishTypes: FishType[] = await this.findEntities(ctx);
+    for (const fishType of fishTypes) {
+      const fishBatchesCount: number = await ctx.call('fishBatches.count', {
+        query: {
+          fishType: fishType.id,
+        },
+      });
+      await this.updateEntity(ctx, { id: fishType.id, priority: fishBatchesCount });
+    }
   }
 }
