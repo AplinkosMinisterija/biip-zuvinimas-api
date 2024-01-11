@@ -29,6 +29,7 @@ import { FishType } from './fishTypes.service';
 import { Setting } from './settings.service';
 import { Tenant } from './tenants.service';
 import { User } from './users.service';
+import {validateFishStockingRegistrationTime} from "../utils/functions";
 
 const Readable = require('stream').Readable;
 
@@ -449,32 +450,6 @@ export type FishStocking<
   },
 })
 export default class FishStockingsService extends moleculer.Service {
-  @Action()
-  async getLocations() {
-    const adapter = await this.getAdapter();
-    const knex = adapter.client;
-    return knex.raw(
-      `select distinct on ("location"::jsonb->'cadastral_id') "location" from "fish_stockings"`,
-    );
-  }
-
-  @Action({
-    rest: 'PATCH /cancel/:id',
-    auth: RestrictionType.USER,
-  })
-  async cancel(ctx: Context<any>) {
-    const fishStocking = await this.resolveEntities(ctx, { id: ctx.params.id });
-    if (
-      fishStocking.status === FishStockingStatus.UPCOMING ||
-      fishStocking.status === FishStockingStatus.ONGOING ||
-      fishStocking.status === FishStockingStatus.NOT_FINISHED
-    ) {
-      return this.updateEntity(ctx, {
-        id: ctx.params.id,
-        canceledAt: new Date().toDateString(),
-      });
-    }
-  }
 
   @Action({
     rest: 'PATCH /:id',
@@ -502,6 +477,7 @@ export default class FishStockingsService extends moleculer.Service {
       canceledAt: 'string|optional',
     },
   })
+  //only for admin
   async updateFishStocking(ctx: Context<any, UserAuthMeta>) {
     const fishStockingBeforeUpdate = await this.resolveEntities(ctx);
     if (ctx.params.inspector) {
@@ -519,6 +495,7 @@ export default class FishStockingsService extends moleculer.Service {
           organization: 'AAD',
         },
       });
+      //inspector can add, remove or update all batches data
       if (ctx.params.batches) {
         await ctx.call('fishBatches.updateBatches', {
           batches: ctx.params.batches,
@@ -535,13 +512,26 @@ export default class FishStockingsService extends moleculer.Service {
       }
       return fishStocking;
     }
-    if (ctx.params.batches) {
-      await ctx.call('fishBatches.updateBatches', {
-        batches: ctx.params.batches,
-        fishStocking: Number(ctx.params.id),
+    return this.updateEntity(ctx);
+  }
+
+  @Action({
+    rest: 'PATCH /cancel/:id',
+    auth: RestrictionType.USER,
+  })
+  //for user
+  async cancel(ctx: Context<any>) {
+    const fishStocking = await this.resolveEntities(ctx, { id: ctx.params.id });
+    if (
+      fishStocking.status === FishStockingStatus.UPCOMING ||
+      fishStocking.status === FishStockingStatus.ONGOING ||
+      fishStocking.status === FishStockingStatus.NOT_FINISHED
+    ) {
+      return this.updateEntity(ctx, {
+        id: ctx.params.id,
+        canceledAt: new Date().toDateString(),
       });
     }
-    return this.updateEntity(ctx);
   }
 
   @Action({
@@ -561,23 +551,64 @@ export default class FishStockingsService extends moleculer.Service {
         },
       },
       geom: 'any',
-      batches: 'array',
+      batches: {
+        type: 'array',
+        required: true,
+        min: 1,
+        items: {
+          type: 'object',
+          properties: {
+            fishType: 'number',
+            fishAge: 'number',
+            amount: 'number|convert',
+            weight: 'number|optional|convert'
+          },
+        }
+      },
       fishOrigin: 'string',
       fishOriginCompanyName: 'string|optional',
       fishOriginReservoir: 'object|optional',
-      tenant: 'number|optional',
-      stockingCustomer: 'number|optional',
+      tenant: 'number|optional', //Tenant must be added automaticaty
+      stockingCustomer: 'number|optional',//
     },
   })
   async register(ctx: Context<any>) {
+
+    const validTime = await validateFishStockingRegistrationTime(ctx, new Date(ctx.params.eventTime));
+
+    if(!validTime) {
+      throw new moleculer.Errors.ValidationError('Invalid event time');
+    }
+
+    //TODO: validate assignedTo
+    if(ctx.params.assignedTo) {
+      //If freelancer registration, then assignedTo must be the same person creating this fish stocking registration.
+      //If tenant registration, then assignedTo must be user of that tenant.
+    }
+
+    //TODO: validate batches fishType
+
+    //TODO: validate batches fishAge
+
+    //TODO: validate stocking customer
+
+    //TODO: validate phone number
+
     const fishStocking: FishStocking = await this.createEntity(ctx);
-    await ctx.call(
-      'fishBatches.createMany',
-      ctx.params.batches.map((batch: FishBatch) => ({
-        ...batch,
-        fishStocking: fishStocking.id,
-      })),
-    );
+
+    try {
+      await ctx.call(
+        'fishBatches.createBatches',
+          {
+            batches: ctx.params.batches,
+            fishStocking: fishStocking.id,
+          }
+      );
+    } catch (e) {
+      await this.removeEntity(ctx, { id: fishStocking.id });
+      throw  e;
+    }
+
     const users: any = await ctx.call('auth.permissions.getUsersByAccess', {
       access: 'FISH_STOCKING_EMAILS',
       data: {
@@ -600,6 +631,7 @@ export default class FishStockingsService extends moleculer.Service {
     auth: RestrictionType.USER,
     cache: false,
     params: {
+      id: 'number|convert',
       eventTime: 'string',
       phone: 'string',
       assignedTo: {
@@ -621,7 +653,20 @@ export default class FishStockingsService extends moleculer.Service {
           municipality: 'object',
         },
       },
-      batches: 'array',
+      batches: {
+        type: 'array',
+        required: false,
+        items: {
+          type: 'object',
+          properties: {
+            id: 'number|optional',
+            fishType: 'number',
+            fishAge: 'number',
+            amount: 'number',
+            weight: 'number|optional'
+          }
+        }
+      },
       fishOrigin: 'string',
       fishOriginCompanyName: 'string|optional',
       fishOriginReservoir: 'object|optional',
@@ -630,9 +675,31 @@ export default class FishStockingsService extends moleculer.Service {
     },
   })
   async updateRegistration(ctx: Context<any>) {
-    const fishStocking: FishStocking = await this.updateEntity(ctx, ctx.params);
+    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id});
+    if(!existingFishStocking) {
+      throw new moleculer.Errors.ValidationError('Invalid fish stocking');
+    }
+    if(ctx.params.eventTime) {
+      const validTime = await validateFishStockingRegistrationTime(ctx, new Date(ctx.params.eventTime));
+      if(!validTime) {
+        throw new moleculer.Errors.ValidationError('Invalid event time');
+      }
+    }
+    //TODO: validate assignee
 
-    await ctx.call('fishBatches.updateBatches', {
+    const isReadyForReview = await validateFishStockingRegistrationTime(ctx, existingFishStocking.eventTime);
+    const assignedToChanged = !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
+
+    //If existing fish stocking time is within the time interval indicating that it is time to review fish stocking,
+    //then most of the data cannot be edited except assignedTo to reassign user.
+    if(!isReadyForReview && assignedToChanged)  {
+      return this.updateEntity(ctx, {assignedTo: ctx.params.assignedTo});
+    }
+
+    const fishStocking: FishStocking = await this.updateEntity(ctx);
+
+    //if fishStocking not finished yet, user can add, remove or update initial data of fish batches
+    await ctx.call('fishBatches.updateRegisteredBatches', {
       batches: ctx.params.batches,
       fishStocking: Number(ctx.params.id),
     });
@@ -655,11 +722,22 @@ export default class FishStockingsService extends moleculer.Service {
       veterinaryApprovalOrderNo: 'string|optional',
       containerWaterTemp: 'number',
       waterTemp: 'number',
-      batches: 'array',
+      batches: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: 'number',
+            reviewAmount: 'number',
+            reviewWeight: 'number|optional',
+          }
+        }
+      },
       signatures: 'any|optional',
       comment: 'string|optional',
     },
   })
+  //only for user
   async review(
     ctx: Context<
       {
@@ -691,7 +769,8 @@ export default class FishStockingsService extends moleculer.Service {
       reviewTime: new Date(),
     });
 
-    await ctx.call('fishBatches.updateBatches', {
+    // if fishing is not finished and has to be reviewed, user can update review data of fishBatches.
+    await ctx.call('fishBatches.reviewBatches', {
       batches: ctx.params.batches,
       fishStocking: ctx.params.id,
     });
@@ -734,6 +813,14 @@ export default class FishStockingsService extends moleculer.Service {
     return data;
   }
 
+  @Action()
+  async getLocations() {
+    const adapter = await this.getAdapter();
+    const knex = adapter.client;
+    return knex.raw(
+        `select distinct on ("location"::jsonb->'cadastral_id') "location" from "fish_stockings"`,
+    );
+  }
   @Action()
   async getLocationsCount(ctx: Context<any>) {
     const adapter = await this.getAdapter(ctx);
@@ -832,9 +919,7 @@ export default class FishStockingsService extends moleculer.Service {
         currentGroupedFishBatch: { [key: string]: any },
       ) => {
         const { cadastralId, count, ...rest } = currentGroupedFishBatch;
-
         groupedFishBatch[cadastralId] = { count, byFishes: Object.values(rest) };
-
         return groupedFishBatch;
       },
       {},
@@ -855,7 +940,6 @@ export default class FishStockingsService extends moleculer.Service {
         fishStocking.fishOrigin === 'GROWN'
           ? fishStocking?.fishOriginCompanyName
           : fishStocking?.fishOriginReservoir;
-
       const date = fishStocking?.eventTime || '-';
       const municipality = fishStocking.location.municipality?.name || '-';
       const waterBodyName = fishStocking.location?.name || '-';
@@ -898,11 +982,9 @@ export default class FishStockingsService extends moleculer.Service {
         'Content-Disposition': 'attachment; filename="zuvinimai.xlsx"',
       },
     };
-
     const stream = new Readable();
     stream.push(buffer);
     stream.push(null);
-
     return stream;
   }
 
