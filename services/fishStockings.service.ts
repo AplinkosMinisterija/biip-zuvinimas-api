@@ -591,7 +591,7 @@ export default class FishStockingsService extends moleculer.Service {
         type: 'string',
         pattern: /^(86|\+3706)\d{7}$/
       },
-      assignedTo: 'number',
+      assignedTo: 'number|integer|convert',
       location: {
         type: 'object',
         properties: {
@@ -615,15 +615,14 @@ export default class FishStockingsService extends moleculer.Service {
           },
         }
       },
-      fishOrigin: 'string',
+      fishOrigin: {type: 'string'},//TODO: should be enum
       fishOriginCompanyName: 'string|optional',
       fishOriginReservoir: 'object|optional',
-      tenant: 'number|optional', //Tenant must be added automaticaty
+      tenant: 'number|integer|optional|optional',
       stockingCustomer: 'number|integer|optional|convert',
     },
   })
   async register(ctx: Context<any, UserAuthMeta>) {
-
     // Validate eventTime
     const validTime = await validateFishStockingRegistrationTime(ctx, new Date(ctx.params.eventTime));
     if(!validTime) {
@@ -649,28 +648,8 @@ export default class FishStockingsService extends moleculer.Service {
       ctx.params.assignedTo = ctx.meta.user.id;
     }
 
-    // Validate batches fishType
-    const fishTypesIds = ctx.params.batches.map((batch: {fishType: number}) => batch.fishType);
-    const fishTypes: FishType[] = await ctx.call('fishTypes.find', {
-      query: {
-        id: {$in: fishTypesIds}
-      }
-    });
-
-    if(fishTypesIds.length !== fishTypes.length) {
-      throw new moleculer.Errors.ValidationError('Invalid fishType id');
-    }
-
-    // Validate batches fishAge
-    const fishAgesIds = ctx.params.batches.map((batch: {fishAge: number}) => batch.fishAge);
-    const fishAges: FishAge[] = await ctx.call('fishAges.find', {
-      query: {
-        id: {$in: fishAgesIds}
-      }
-    });
-    if(fishAgesIds.length !== fishAges.length) {
-      throw new moleculer.Errors.ValidationError('Invalid fishAge id');
-    }
+    // Validate fishType & fishAge
+    await this.validateFishData(ctx);
 
     // Validate stocking customer
     if(ctx.params.stockingCustomer) {
@@ -757,6 +736,7 @@ export default class FishStockingsService extends moleculer.Service {
         required: false,
         items: {
           type: 'object',
+          min: 1,
           properties: {
             id: 'number|optional',
             fishType: 'number',
@@ -773,8 +753,39 @@ export default class FishStockingsService extends moleculer.Service {
       stockingCustomer: 'number|optional',
     },
   })
-  async updateRegistration(ctx: Context<any>) {
+  async updateRegistration(ctx: Context<any, UserAuthMeta>) {
     const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id});
+    //TODO: validate if user can edit this fish stocking
+
+    const isReadyForReview = await validateFishStockingRegistrationTime(ctx, existingFishStocking.eventTime);
+    const assignedToChanged = !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
+
+    // Validate assignedTo
+    // If freelancer registration, then assignedTo is connected user.
+    // If tenant registration, then assignedTo must be user of that tenant.
+    if(ctx.meta.profile) {
+      if(ctx.params.assignedTo) {
+        const tenantUser = await ctx.call('tenantUsers.find', {
+          user: ctx.params.assignedTo,
+          tenant: ctx.meta.profile,
+        });
+        if(!tenantUser) {
+          throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
+        }
+      } else {
+        throw new moleculer.Errors.ValidationError('"assignedTo" must be defined');
+      }
+    } else {
+      ctx.params.assignedTo = ctx.meta.user.id;
+    }
+
+    // If existing fish stocking time is within the time interval indicating that it is time to review fish stocking,
+    // then most of the data cannot be edited except assignedTo.
+    if(!isReadyForReview && assignedToChanged)  {
+      return this.updateEntity(ctx, {assignedTo: ctx.params.assignedTo});
+    }
+
+    // Validate event time
     if(!existingFishStocking) {
       throw new moleculer.Errors.ValidationError('Invalid fish stocking');
     }
@@ -784,18 +795,19 @@ export default class FishStockingsService extends moleculer.Service {
         throw new moleculer.Errors.ValidationError('Invalid event time');
       }
     }
-    //TODO: validate assignedTo
-    //TODO: validate fishTypes
-    //TODO: validate fishAges
+    // Validate fishType & fishAge
+    if(ctx.params.batches) {
+      await this.validateFishData(ctx);
+    }
 
-
-    const isReadyForReview = await validateFishStockingRegistrationTime(ctx, existingFishStocking.eventTime);
-    const assignedToChanged = !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
-
-    //If existing fish stocking time is within the time interval indicating that it is time to review fish stocking,
-    //then most of the data cannot be edited except assignedTo to reassign user.
-    if(!isReadyForReview && assignedToChanged)  {
-      return this.updateEntity(ctx, {assignedTo: ctx.params.assignedTo});
+    // Validate stocking customer
+    if(ctx.params.stockingCustomer) {
+      const stockingCustomer = await ctx.call('tenants.get', {
+        id: ctx.params.stockingCustomer,
+      });
+      if(!stockingCustomer) {
+        throw new moleculer.Errors.ValidationError('Invalid "stockingCustomer" id');
+      }
     }
 
     const fishStocking: FishStocking = await this.updateEntity(ctx);
@@ -1351,6 +1363,32 @@ export default class FishStockingsService extends moleculer.Service {
       }
     }
     return ctx;
+  }
+
+  @Method
+  async validateFishData(ctx: Context<any>) {
+    // Validate batches fishType
+    const fishTypesIds = ctx.params.batches.map((batch: {fishType: number}) => batch.fishType);
+    const fishTypes: FishType[] = await ctx.call('fishTypes.find', {
+      query: {
+        id: {$in: fishTypesIds}
+      }
+    });
+
+    if(fishTypesIds.length !== fishTypes.length) {
+      throw new moleculer.Errors.ValidationError('Invalid fishType id');
+    }
+
+    // Validate batches fishAge
+    const fishAgesIds = ctx.params.batches.map((batch: {fishAge: number}) => batch.fishAge);
+    const fishAges: FishAge[] = await ctx.call('fishAges.find', {
+      query: {
+        id: {$in: fishAgesIds}
+      }
+    });
+    if(fishAgesIds.length !== fishAges.length) {
+      throw new moleculer.Errors.ValidationError('Invalid fishAge id');
+    }
   }
   @Event()
   async 'fishBatches.*'(ctx: Context<EntityChangedParams<FishBatch>>) {
