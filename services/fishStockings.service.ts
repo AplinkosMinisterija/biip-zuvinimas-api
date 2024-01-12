@@ -30,6 +30,7 @@ import { Setting } from './settings.service';
 import { Tenant } from './tenants.service';
 import { User } from './users.service';
 import {validateFishStockingRegistrationTime} from "../utils/functions";
+import {FishAge} from "./fishAges.service";
 
 const Readable = require('stream').Readable;
 
@@ -279,7 +280,11 @@ export type FishStocking<
           action: 'users.resolve',
         },
       },
-      phone: 'string|required',
+      phone: {
+        type: 'string',
+        required: true,
+        pattern: /^(86|\+3706)\d{7}$/
+      },
       reviewedBy: {
         type: 'number',
         columnType: 'integer',
@@ -373,7 +378,11 @@ export type FishStocking<
           lastName: 'string',
           id: 'number',
           email: 'string|optional',
-          phone: 'string|optional',
+          phone: {
+            type: 'string',
+            required: false,
+            pattern: /^(86|\+3706)\d{7}$/
+          },
           organization: 'string',
         },
       },
@@ -464,21 +473,49 @@ export default class FishStockingsService extends moleculer.Service {
       fishOriginReservoir: 'object|optional',
       location: 'object|optional',
       geom: 'any|optional',
-      batches: 'array|optional',
+      batches: {
+        type: 'array',
+        required: false,
+        min: 1,
+        items: {
+          type: 'object',
+          properties: {
+            id: 'number|optional',
+            fishType: 'number|optional',
+            fishAge: 'number|optional',
+            amount: 'number',
+            weight: 'number|optional',
+            reviewAmount: 'number|optional',
+            reviewWeight: 'number|optional'
+          }
+        }
+      },
       assignedTo: 'number|optional',
-      phone: 'string|optional',
+      phone: {
+        type: 'string',
+        required: false,
+        pattern: /^(86|\+3706)\d{7}$/
+      },
       waybillNo: 'string|optional',
       veterinaryApprovalNo: 'string|optional',
       veterinaryApprovalOrderNo: 'string|optional',
       containerWaterTemp: 'number|optional',
       waterTemp: 'number|optional',
-      signatures: 'any|optional',
-      inspector: 'number|optional',
+      signatures: 'any|optional',//TODO: type should not be any
+      inspector: 'number|optional',//TODO: not sure if this is needed
       canceledAt: 'string|optional',
     },
   })
   //only for admin
   async updateFishStocking(ctx: Context<any, UserAuthMeta>) {
+    //TODO: validate assignedToInspector
+    //TODO: validate tenant
+    //TODO: validate stockingCustomer
+    //TODO: fishTypes
+    //TODO: validate fishAges
+    //TODO: validate assignedTo
+    //TODO: validate canceledAt date - it should not be before eventTime
+
     const fishStockingBeforeUpdate = await this.resolveEntities(ctx);
     if (ctx.params.inspector) {
       const inspector: any = await ctx.call('auth.users.get', {
@@ -540,7 +577,10 @@ export default class FishStockingsService extends moleculer.Service {
     cache: false,
     params: {
       eventTime: 'string',
-      phone: 'string',
+      phone: {
+        type: 'string',
+        pattern: /^(86|\+3706)\d{7}$/
+      },
       assignedTo: 'number',
       location: {
         type: 'object',
@@ -558,10 +598,10 @@ export default class FishStockingsService extends moleculer.Service {
         items: {
           type: 'object',
           properties: {
-            fishType: 'number',
-            fishAge: 'number',
-            amount: 'number|convert',
-            weight: 'number|optional|convert'
+            fishType: 'number|integer|positive|convert',
+            fishAge: 'number|integer|positive|convert',
+            amount: 'number|integer|positive|convert',
+            weight: 'number|positive|optional|convert'
           },
         }
       },
@@ -569,10 +609,10 @@ export default class FishStockingsService extends moleculer.Service {
       fishOriginCompanyName: 'string|optional',
       fishOriginReservoir: 'object|optional',
       tenant: 'number|optional', //Tenant must be added automaticaty
-      stockingCustomer: 'number|optional',//
+      stockingCustomer: 'number|integer|optional|convert',
     },
   })
-  async register(ctx: Context<any>) {
+  async register(ctx: Context<any, UserAuthMeta>) {
 
     const validTime = await validateFishStockingRegistrationTime(ctx, new Date(ctx.params.eventTime));
 
@@ -580,19 +620,63 @@ export default class FishStockingsService extends moleculer.Service {
       throw new moleculer.Errors.ValidationError('Invalid event time');
     }
 
-    //TODO: validate assignedTo
-    if(ctx.params.assignedTo) {
-      //If freelancer registration, then assignedTo must be the same person creating this fish stocking registration.
-      //If tenant registration, then assignedTo must be user of that tenant.
+    //If freelancer registration, then assignedTo is connected user.
+    //If tenant registration, then assignedTo must be user of that tenant.
+    if(ctx.meta.profile) {
+      if(ctx.params.assignedTo) {
+        const tenantUser = await ctx.call('tenantUsers.find', {
+          user: ctx.params.assignedTo,
+          tenant: ctx.meta.profile,
+        });
+        if(!tenantUser) {
+          throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
+        }
+      } else {
+        throw new moleculer.Errors.ValidationError('"assignedTo" must be defined');
+      }
+    } else {
+      ctx.params.assignedTo = ctx.meta.user.id;
     }
 
     //TODO: validate batches fishType
+    const fishTypesIds = ctx.params.batches.map((batch: {fishType: number}) => batch.fishType);
+    const fishTypes: FishType[] = await ctx.call('fishTypes.find', {
+      query: {
+        id: {$in: fishTypesIds}
+      }
+    });
+
+    console.log('fishTypesIds, fishTypes',fishTypesIds, fishTypes)
+    if(fishTypesIds.length !== fishTypes.length) {
+      throw new moleculer.Errors.ValidationError('Invalid fishType id');
+    }
 
     //TODO: validate batches fishAge
+    const fishAgesIds = ctx.params.batches.map((batch: {fishAge: number}) => batch.fishAge);
+    const fishAges: FishAge[] = await ctx.call('fishAges.find', {
+      query: {
+        id: {$in: fishAgesIds}
+      }
+    });
+    if(fishAgesIds.length !== fishAges.length) {
+      throw new moleculer.Errors.ValidationError('Invalid fishAge id');
+    }
 
     //TODO: validate stocking customer
+    if(ctx.params.stockingCustomer) {
+      const stockingCustomer = await ctx.call('tenants.get', {
+        id: ctx.params.stockingCustomer,
+      });
+      if(!stockingCustomer) {
+        throw new moleculer.Errors.ValidationError('Invalid "stockingCustomer" id');
+      }
+    }
 
-    //TODO: validate phone number
+    if(!ctx.meta.profile) {
+      ctx.params.tenant = undefined;
+    } else {
+      ctx.params.tenant = ctx.meta.profile;
+    }
 
     const fishStocking: FishStocking = await this.createEntity(ctx);
 
@@ -633,7 +717,10 @@ export default class FishStockingsService extends moleculer.Service {
     params: {
       id: 'number|convert',
       eventTime: 'string',
-      phone: 'string',
+      phone: {
+        type: 'string',
+        pattern: /^(86|\+3706)\d{7}$/
+      },
       assignedTo: {
         type: 'number',
         columnType: 'integer',
@@ -685,7 +772,10 @@ export default class FishStockingsService extends moleculer.Service {
         throw new moleculer.Errors.ValidationError('Invalid event time');
       }
     }
-    //TODO: validate assignee
+    //TODO: validate assignedTo
+    //TODO: validate fishTypes
+    //TODO: validate fishAges
+
 
     const isReadyForReview = await validateFishStockingRegistrationTime(ctx, existingFishStocking.eventTime);
     const assignedToChanged = !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
@@ -1000,6 +1090,7 @@ export default class FishStockingsService extends moleculer.Service {
       geom?: GeomFeatureCollection;
     }>,
   ) {
+
     const { geom, id } = ctx.params;
 
     if (geom?.features?.length) {
@@ -1282,6 +1373,7 @@ export default class FishStockingsService extends moleculer.Service {
     const fishStocking = await this.resolveEntities(ctx, {
       id: fishBatches[0].fishStocking,
     });
+
     if (fishStocking) {
       await this.updateEntity(
         ctx,
