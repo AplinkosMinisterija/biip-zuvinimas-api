@@ -501,7 +501,17 @@ export default class FishStockingsService extends moleculer.Service {
       veterinaryApprovalOrderNo: 'string|optional',
       containerWaterTemp: 'number|optional',
       waterTemp: 'number|optional',
-      signatures: 'any|optional',//TODO: type should not be any
+      signatures: {
+        type: 'array',
+        required: false,
+        items: {
+          type: 'object',
+          properties: {
+            signedBy: 'string',
+            signature: 'string|base64'
+          }
+        }
+      },
       inspector: 'number|optional',//TODO: not sure if this is needed
       canceledAt: 'string|optional',
     },
@@ -614,14 +624,15 @@ export default class FishStockingsService extends moleculer.Service {
   })
   async register(ctx: Context<any, UserAuthMeta>) {
 
+    // Validate eventTime
     const validTime = await validateFishStockingRegistrationTime(ctx, new Date(ctx.params.eventTime));
-
     if(!validTime) {
       throw new moleculer.Errors.ValidationError('Invalid event time');
     }
 
-    //If freelancer registration, then assignedTo is connected user.
-    //If tenant registration, then assignedTo must be user of that tenant.
+    // Validate assignedTo:
+    // If freelancer registration, then assignedTo is connected user.
+    // If tenant registration, then assignedTo must be user of that tenant.
     if(ctx.meta.profile) {
       if(ctx.params.assignedTo) {
         const tenantUser = await ctx.call('tenantUsers.find', {
@@ -638,7 +649,7 @@ export default class FishStockingsService extends moleculer.Service {
       ctx.params.assignedTo = ctx.meta.user.id;
     }
 
-    //TODO: validate batches fishType
+    // Validate batches fishType
     const fishTypesIds = ctx.params.batches.map((batch: {fishType: number}) => batch.fishType);
     const fishTypes: FishType[] = await ctx.call('fishTypes.find', {
       query: {
@@ -646,12 +657,11 @@ export default class FishStockingsService extends moleculer.Service {
       }
     });
 
-    console.log('fishTypesIds, fishTypes',fishTypesIds, fishTypes)
     if(fishTypesIds.length !== fishTypes.length) {
       throw new moleculer.Errors.ValidationError('Invalid fishType id');
     }
 
-    //TODO: validate batches fishAge
+    // Validate batches fishAge
     const fishAgesIds = ctx.params.batches.map((batch: {fishAge: number}) => batch.fishAge);
     const fishAges: FishAge[] = await ctx.call('fishAges.find', {
       query: {
@@ -662,7 +672,7 @@ export default class FishStockingsService extends moleculer.Service {
       throw new moleculer.Errors.ValidationError('Invalid fishAge id');
     }
 
-    //TODO: validate stocking customer
+    // Validate stocking customer
     if(ctx.params.stockingCustomer) {
       const stockingCustomer = await ctx.call('tenants.get', {
         id: ctx.params.stockingCustomer,
@@ -672,6 +682,7 @@ export default class FishStockingsService extends moleculer.Service {
       }
     }
 
+    // Assign tenant if necessary
     if(!ctx.meta.profile) {
       ctx.params.tenant = undefined;
     } else {
@@ -693,6 +704,7 @@ export default class FishStockingsService extends moleculer.Service {
       throw  e;
     }
 
+    // Send email to notify about new fish stocking
     const users: any = await ctx.call('auth.permissions.getUsersByAccess', {
       access: 'FISH_STOCKING_EMAILS',
       data: {
