@@ -1,4 +1,4 @@
-import { Context } from 'moleculer';
+import moleculer, { Context } from 'moleculer';
 import { AuthUserRole, UserAuthMeta } from '../services/api.service';
 import { TenantUserRole } from '../services/tenantUsers.service';
 import { throwNoRightsError } from '../types';
@@ -15,13 +15,37 @@ export const validateCanManageTenantUser = (ctx: Context<any, UserAuthMeta>, err
   }
 };
 
-export const validateFishStockingRegistrationTime = async (ctx: Context<any>, time: Date) => {
+export const isTimeBeforeReview = async (ctx: Context<any>, time: Date) => {
   const eventTime = time.getTime();
   if(isNaN(eventTime)) {
-    return false;
+    throw new moleculer.Errors.ValidationError('Invalid event time');
   }
   const currentTime = new Date().getTime();
   const timeDiff = eventTime - currentTime;
   const settings: Setting = await ctx.call('settings.getSettings');
   return timeDiff >= (24*60*60*1000) * settings.minTimeTillFishStocking;
 }
+
+export const isTimeAfterReview = async (ctx: Context<any>, time: Date) => {
+  const eventTime = time.getTime();
+  if(isNaN(eventTime)) {
+    throw new moleculer.Errors.ValidationError('Invalid event time');
+  }
+  const currentTime = new Date().getTime();
+  const timeDiff = eventTime - currentTime;
+  const settings: Setting = await ctx.call('settings.getSettings');
+  return timeDiff <= (24*60*60*1000) * settings.maxTimeForRegistration;
+}
+
+export const isReviewTime = async (ctx: Context<any>, time: Date) => {
+  const eventTime = time.getTime();
+  if(isNaN(eventTime)) {
+    throw new moleculer.Errors.ValidationError('Invalid event time');
+  }
+  const currentTime = new Date().getTime();
+  const timeDiff = eventTime - currentTime;
+  const settings: Setting = await ctx.call('settings.getSettings');
+  return timeDiff <= (24*60*60*1000) * settings.maxTimeForRegistration;
+}
+
+

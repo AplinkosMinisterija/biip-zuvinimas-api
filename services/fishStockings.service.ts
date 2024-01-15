@@ -29,7 +29,7 @@ import { FishType } from './fishTypes.service';
 import { Setting } from './settings.service';
 import { Tenant } from './tenants.service';
 import { User } from './users.service';
-import {validateFishStockingRegistrationTime} from "../utils/functions";
+import {isTimeBeforeReview} from "../utils/functions";
 import {FishAge} from "./fishAges.service";
 
 const Readable = require('stream').Readable;
@@ -481,8 +481,8 @@ export default class FishStockingsService extends moleculer.Service {
           type: 'object',
           properties: {
             id: 'number|optional',
-            fishType: 'number|optional',
-            fishAge: 'number|optional',
+            fishType: 'number',
+            fishAge: 'number',
             amount: 'number',
             weight: 'number|optional',
             reviewAmount: 'number|optional',
@@ -512,25 +512,76 @@ export default class FishStockingsService extends moleculer.Service {
           }
         }
       },
-      inspector: 'number|optional',//TODO: not sure if this is needed
+      inspector: 'number|optional',
       canceledAt: 'string|optional',
     },
   })
-  //only for admin
   async updateFishStocking(ctx: Context<any, UserAuthMeta>) {
-    //TODO: validate assignedToInspector
-    //TODO: validate tenant
-    //TODO: validate stockingCustomer
-    //TODO: fishTypes
-    //TODO: validate fishAges
-    //TODO: validate assignedTo
-    //TODO: validate canceledAt date - it should not be before eventTime
+
+    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});
+
+    // Validate tenant
+    if(ctx.params.tenant) {
+      const tenant = await ctx.call('tenants.get', {id: ctx.params.tenant});
+      if(!tenant) {
+        throw new moleculer.Errors.ValidationError('Invalid tenant');
+      }
+    }
+    // Validate stockingCustomer
+    if(ctx.params.stockingCustomer) {
+      const stockingCustomer = await ctx.call('tenants.get', {id: ctx.params.stockingCustomer});
+      if(!stockingCustomer) {
+        throw new moleculer.Errors.ValidationError('Invalid stocking customer');
+      }
+    }
+
+    // Validate fishType & fishAge
+    if(ctx.params.batches) {
+      await this.validateFishData(ctx);
+    }
+
+    // Validate assignedTo
+    if(ctx.params.assignedTo) {
+      const tenant = ctx.params.tenant || existingFishStocking.tenant;
+      if (tenant) { // Tenant fish stocking
+        const tenantUser = await ctx.call('tenantUsers.find', {
+          query: {
+            tenant,
+            user: ctx.params.assignedTo,
+          }
+        });
+        if(!tenantUser) {
+          throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
+        }
+      } else { // Freelancers fish stocking
+        const user: User = await ctx.call('users.get', {
+          id: ctx.params.assignedTo,
+        });
+        //if user does not exist or is not freelancer
+        if(!user || !user.isFreelancer) {
+          throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
+        }
+      }
+    }
+
+    // Validate canceledAt time
+    if(ctx.params.canceledAt) {
+      const eventTime: Date = ctx.params.eventTime && new Date(ctx.params.eventTime) || existingFishStocking.eventTime;
+      const canceledAtTime = new Date(ctx.params.canceledAt);
+      if(eventTime.getTime() - canceledAtTime.getTime() <= 0) {
+        throw new moleculer.Errors.ValidationError('Invalid "canceledAt" time');
+      }
+    }
 
     const fishStockingBeforeUpdate = await this.resolveEntities(ctx);
     if (ctx.params.inspector) {
       const inspector: any = await ctx.call('auth.users.get', {
         id: ctx.params.inspector,
       });
+      // Validate inspector
+      if(!inspector) {
+        throw new moleculer.Errors.ValidationError('Invalid inspector id');
+      }
       const fishStocking = await this.updateEntity(ctx, {
         ...ctx.params,
         inspector: {
@@ -542,7 +593,7 @@ export default class FishStockingsService extends moleculer.Service {
           organization: 'AAD',
         },
       });
-      //inspector can add, remove or update all batches data
+      // Inspector can add, remove or update batches
       if (ctx.params.batches) {
         await ctx.call('fishBatches.updateBatches', {
           batches: ctx.params.batches,
@@ -566,9 +617,19 @@ export default class FishStockingsService extends moleculer.Service {
     rest: 'PATCH /cancel/:id',
     auth: RestrictionType.USER,
   })
-  //for user
-  async cancel(ctx: Context<any>) {
+  async cancel(ctx: Context<any, UserAuthMeta>) {
     const fishStocking = await this.resolveEntities(ctx, { id: ctx.params.id });
+
+    // Validate if user can cancel fishStocking
+    const tenantUserCanDelete = ctx.meta.profile && fishStocking.tenant && ctx.meta.profile === fishStocking.tenant;
+    const freelancerCanDelete = !ctx.meta.profile && !fishStocking.tenant && ctx.meta.user.id === fishStocking.assignedTo;
+    const canDelete =  tenantUserCanDelete || freelancerCanDelete;
+    if(!canDelete) {
+      throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
+        error: 'Unauthorized',
+      });
+    }
+
     if (
       fishStocking.status === FishStockingStatus.UPCOMING ||
       fishStocking.status === FishStockingStatus.ONGOING ||
@@ -623,43 +684,21 @@ export default class FishStockingsService extends moleculer.Service {
     },
   })
   async register(ctx: Context<any, UserAuthMeta>) {
+
     // Validate eventTime
-    const validTime = await validateFishStockingRegistrationTime(ctx, new Date(ctx.params.eventTime));
-    if(!validTime) {
+    const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
+    if(!timeBeforeReview) {
       throw new moleculer.Errors.ValidationError('Invalid event time');
     }
 
-    // Validate assignedTo:
-    // If freelancer registration, then assignedTo is connected user.
-    // If tenant registration, then assignedTo must be user of that tenant.
-    if(ctx.meta.profile) {
-      if(ctx.params.assignedTo) {
-        const tenantUser = await ctx.call('tenantUsers.find', {
-          user: ctx.params.assignedTo,
-          tenant: ctx.meta.profile,
-        });
-        if(!tenantUser) {
-          throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
-        }
-      } else {
-        throw new moleculer.Errors.ValidationError('"assignedTo" must be defined');
-      }
-    } else {
-      ctx.params.assignedTo = ctx.meta.user.id;
-    }
+    // Validate assignedTo
+    await this.validateAssignedTo(ctx);
 
     // Validate fishType & fishAge
     await this.validateFishData(ctx);
 
     // Validate stocking customer
-    if(ctx.params.stockingCustomer) {
-      const stockingCustomer = await ctx.call('tenants.get', {
-        id: ctx.params.stockingCustomer,
-      });
-      if(!stockingCustomer) {
-        throw new moleculer.Errors.ValidationError('Invalid "stockingCustomer" id');
-      }
-    }
+    await this.validateStockingCustomer(ctx);
 
     // Assign tenant if necessary
     if(!ctx.meta.profile) {
@@ -698,7 +737,7 @@ export default class FishStockingsService extends moleculer.Service {
         update: false,
       });
     }
-    return this.resolveEntities(ctx, { id: fishStocking.id });
+    return this.resolveEntities(ctx, { id: fishStocking.id, populate: ['status', 'batches'] });
   }
 
   @Action({
@@ -733,7 +772,7 @@ export default class FishStockingsService extends moleculer.Service {
       },
       batches: {
         type: 'array',
-        required: false,
+        optional: true,
         items: {
           type: 'object',
           min: 1,
@@ -754,72 +793,65 @@ export default class FishStockingsService extends moleculer.Service {
     },
   })
   async updateRegistration(ctx: Context<any, UserAuthMeta>) {
-    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id});
-    //TODO: validate if user can edit this fish stocking
+    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});
 
-    const isReadyForReview = await validateFishStockingRegistrationTime(ctx, existingFishStocking.eventTime);
-    const assignedToChanged = !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
-
-    // Validate assignedTo
-    // If freelancer registration, then assignedTo is connected user.
-    // If tenant registration, then assignedTo must be user of that tenant.
-    if(ctx.meta.profile) {
-      if(ctx.params.assignedTo) {
-        const tenantUser = await ctx.call('tenantUsers.find', {
-          user: ctx.params.assignedTo,
-          tenant: ctx.meta.profile,
-        });
-        if(!tenantUser) {
-          throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
-        }
-      } else {
-        throw new moleculer.Errors.ValidationError('"assignedTo" must be defined');
-      }
-    } else {
-      ctx.params.assignedTo = ctx.meta.user.id;
-    }
-
-    // If existing fish stocking time is within the time interval indicating that it is time to review fish stocking,
-    // then most of the data cannot be edited except assignedTo.
-    if(!isReadyForReview && assignedToChanged)  {
-      return this.updateEntity(ctx, {assignedTo: ctx.params.assignedTo});
-    }
-
-    // Validate event time
     if(!existingFishStocking) {
       throw new moleculer.Errors.ValidationError('Invalid fish stocking');
     }
-    if(ctx.params.eventTime) {
-      const validTime = await validateFishStockingRegistrationTime(ctx, new Date(ctx.params.eventTime));
-      if(!validTime) {
-        throw new moleculer.Errors.ValidationError('Invalid event time');
-      }
-    }
-    // Validate fishType & fishAge
-    if(ctx.params.batches) {
-      await this.validateFishData(ctx);
+    // Validate fish stocking status
+    if(![FishStockingStatus.UPCOMING, FishStockingStatus.ONGOING].some(status => status ===existingFishStocking.status)) {
+      throw new moleculer.Errors.ValidationError('Invalid fish stocking status');
     }
 
-    // Validate stocking customer
-    if(ctx.params.stockingCustomer) {
-      const stockingCustomer = await ctx.call('tenants.get', {
-        id: ctx.params.stockingCustomer,
+    //Validate if user can edit fishStocking
+    if(existingFishStocking.tenant && (!ctx.meta.profile || ctx.meta.profile !== existingFishStocking.tenant)) {
+      throw new moleculer.Errors.ValidationError('Invalid tenant profile');
+    }
+    if(!existingFishStocking.tenant && ctx.meta.user.id !== existingFishStocking.assignedTo) {
+      throw new moleculer.Errors.ValidationError('Invalid user profile');
+    }
+
+    const assignedToChanged = !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
+
+    // Validate assignedTo
+    await this.validateAssignedTo(ctx);
+
+    // If existing fish stocking time is within the time interval indicating that it is time to review fish stocking,
+    // then most of the data cannot be edited except assignedTo.
+    if(existingFishStocking.status === FishStockingStatus.ONGOING)  {
+      if(assignedToChanged) {
+        return this.updateEntity(ctx, {assignedTo: ctx.params.assignedTo});
+      }
+    }
+
+    if(existingFishStocking.status === FishStockingStatus.UPCOMING) {
+      // Validate event time
+      if(ctx.params.eventTime ) {
+        const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
+        if(!timeBeforeReview) {
+          throw new moleculer.Errors.ValidationError('Invalid event time');
+        }
+      }
+
+      // Validate fishType & fishAge
+      if(ctx.params.batches) {
+        await this.validateFishData(ctx);
+      }
+
+      // Validate stocking customer
+      await this.validateStockingCustomer(ctx);
+
+      await this.updateEntity(ctx);
+
+      //if fish stocking is not finished yet, user can add, remove and update batches.
+      await ctx.call('fishBatches.updateRegisteredBatches', {
+        batches: ctx.params.batches,
+        fishStocking: Number(ctx.params.id),
       });
-      if(!stockingCustomer) {
-        throw new moleculer.Errors.ValidationError('Invalid "stockingCustomer" id');
-      }
     }
-
-    const fishStocking: FishStocking = await this.updateEntity(ctx);
-
-    //if fishStocking not finished yet, user can add, remove or update initial data of fish batches
-    await ctx.call('fishBatches.updateRegisteredBatches', {
-      batches: ctx.params.batches,
-      fishStocking: Number(ctx.params.id),
-    });
 
     return this.resolveEntities(ctx, {
-      id: Number(fishStocking.id),
+      id: existingFishStocking.id,
       populate: 'batches',
     });
   }
@@ -877,6 +909,23 @@ export default class FishStockingsService extends moleculer.Service {
       UserAuthMeta
     >,
   ) {
+
+    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});
+
+    // Validate if user can review
+    const invalidFreelancerProfile = !ctx.meta.profile && ctx.meta.user.id !== existingFishStocking.assignedTo;
+    const invalidTenantProfile  = !!ctx.meta.profile && ctx.meta.profile !== existingFishStocking.tenant;
+    if(invalidFreelancerProfile || invalidTenantProfile) {
+      throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
+        error: 'Unauthorized',
+      });
+    }
+
+    // Validate if fishStocking can be reviewed
+    if(existingFishStocking.status !== FishStockingStatus.ONGOING) {
+      throw new moleculer.Errors.ValidationError('Invalid fish stocking status');
+    }
+
     await this.updateEntity(ctx, {
       ...ctx.params,
       reviewedBy: ctx.meta.user.id,
@@ -891,7 +940,7 @@ export default class FishStockingsService extends moleculer.Service {
 
     return this.resolveEntities(ctx, {
       id: ctx.params.id,
-      populate: ['batches', 'images'],
+      populate: ['batches', 'images'], //TODO: if response not used in frontend, would be better to remove populates
     });
   }
 
@@ -1390,6 +1439,40 @@ export default class FishStockingsService extends moleculer.Service {
       throw new moleculer.Errors.ValidationError('Invalid fishAge id');
     }
   }
+
+  @Method
+  async validateStockingCustomer(ctx: Context<any>) {
+    if(ctx.params.stockingCustomer) {
+      const stockingCustomer = await ctx.call('tenants.get', {
+        id: ctx.params.stockingCustomer,
+      });
+      if(!stockingCustomer) {
+        throw new moleculer.Errors.ValidationError('Invalid "stockingCustomer" id');
+      }
+    }
+  }
+
+  @Method
+  async validateAssignedTo(ctx: Context<any, UserAuthMeta>) {
+    // If freelancer registration, then assignedTo is connected user.
+    // If tenant registration, then assignedTo must be user of that tenant.
+    if(ctx.meta.profile) {
+      if(ctx.params.assignedTo) {
+        const tenantUser = await ctx.call('tenantUsers.find', {
+          user: ctx.params.assignedTo,
+          tenant: ctx.meta.profile,
+        });
+        if(!tenantUser) {
+          throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
+        }
+      } else {
+        throw new moleculer.Errors.ValidationError('"assignedTo" must be defined');
+      }
+    } else {
+      ctx.params.assignedTo = ctx.meta.user.id;
+    }
+  }
+
   @Event()
   async 'fishBatches.*'(ctx: Context<EntityChangedParams<FishBatch>>) {
     const type = ctx.params.type;
