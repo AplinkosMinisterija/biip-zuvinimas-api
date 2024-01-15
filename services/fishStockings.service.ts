@@ -43,6 +43,11 @@ export enum FishStockingStatus {
   CANCELED = 'CANCELED',
 }
 
+enum FishOrigin {
+  GROWN = 'GROWN',
+  CAUGHT = 'CAUGHT',
+}
+
 const statusLabels = {
   [FishStockingStatus.UPCOMING]: "Nauja",
   [FishStockingStatus.ONGOING]: "Įžuvinama",
@@ -114,9 +119,10 @@ interface Fields extends CommonFields {
   fishOrigin: string;
   fishOriginCompanyName?: string;
   fishOriginReservoir?: {
-    id: string;
+    area: number;
+    cadastral_id: string;
     name: string;
-    municipality: { id: string; label: string };
+    municipality: string;
   };
   location: {
     name: string;
@@ -209,9 +215,18 @@ export type FishStocking<
           action: 'tenants.resolve',
         },
       },
-      fishOrigin: 'string|required',
+      fishOrigin: { type: "enum", values: Object.values(FishOrigin), required: true},
       fishOriginCompanyName: 'string',
-      fishOriginReservoir: 'object',
+      fishOriginReservoir: {
+        type: 'object',
+        required: false,
+        properties: {
+          area: 'number',
+          name: "string",
+          cadastral_id: "string",
+          municipality: "string"
+        }
+      },
       location: {
         type: 'object',
         raw: true,
@@ -468,9 +483,18 @@ export default class FishStockingsService extends moleculer.Service {
       comment: 'string|optional',
       tenant: 'number|optional',
       stockingCustomer: 'number|optional',
-      fishOrigin: 'string|optional',
+      fishOrigin: { type: "enum", values: Object.values(FishOrigin), required: false },
       fishOriginCompanyName: 'string|optional',
-      fishOriginReservoir: 'object|optional',
+      fishOriginReservoir: {
+        type: 'object',
+        required: false,
+        properties: {
+          area: 'number',
+          name: "string",
+          cadastral_id: "string",
+          municipality: "string"
+        }
+      },
       location: 'object|optional',
       geom: 'any|optional',
       batches: {
@@ -572,6 +596,9 @@ export default class FishStockingsService extends moleculer.Service {
         throw new moleculer.Errors.ValidationError('Invalid "canceledAt" time');
       }
     }
+
+    // Validate fishOrigin
+    await this.validateFishOrigin(ctx, existingFishStocking);
 
     const fishStockingBeforeUpdate = await this.resolveEntities(ctx);
     if (ctx.params.inspector) {
@@ -676,9 +703,18 @@ export default class FishStockingsService extends moleculer.Service {
           },
         }
       },
-      fishOrigin: {type: 'string'},//TODO: should be enum
+      fishOrigin: { type: "enum", values: Object.values(FishOrigin) },
       fishOriginCompanyName: 'string|optional',
-      fishOriginReservoir: 'object|optional',
+      fishOriginReservoir: {
+        type: 'object',
+        required: false,
+        properties: {
+          area: 'number',
+          name: "string",
+          cadastral_id: "string",
+          municipality: "string"
+        }
+      },
       tenant: 'number|integer|optional|optional',
       stockingCustomer: 'number|integer|optional|convert',
     },
@@ -700,6 +736,9 @@ export default class FishStockingsService extends moleculer.Service {
     // Validate stocking customer
     await this.validateStockingCustomer(ctx);
 
+    // Validate fishOrigin
+    await this.validateFishOrigin(ctx);
+
     // Assign tenant if necessary
     if(!ctx.meta.profile) {
       ctx.params.tenant = undefined;
@@ -708,6 +747,7 @@ export default class FishStockingsService extends moleculer.Service {
     }
 
     const fishStocking: FishStocking = await this.createEntity(ctx);
+
 
     try {
       await ctx.call(
@@ -787,7 +827,16 @@ export default class FishStockingsService extends moleculer.Service {
       },
       fishOrigin: 'string',
       fishOriginCompanyName: 'string|optional',
-      fishOriginReservoir: 'object|optional',
+      fishOriginReservoir: {
+        type: 'object',
+        required: false,
+        properties: {
+          area: 'number',
+          name: "string",
+          cadastral_id: "string",
+          municipality: "string"
+        }
+      },
       tenant: 'number|optional',
       stockingCustomer: 'number|optional',
     },
@@ -940,7 +989,7 @@ export default class FishStockingsService extends moleculer.Service {
 
     return this.resolveEntities(ctx, {
       id: ctx.params.id,
-      populate: ['batches', 'images'], //TODO: if response not used in frontend, would be better to remove populates
+      populate: ['batches', 'images'],
     });
   }
 
@@ -1298,6 +1347,7 @@ export default class FishStockingsService extends moleculer.Service {
         }
       }
       if (filters.status) {
+
         const settings: Setting = await ctx.call('settings.getSettings');
 
         const statusQueries: any = getStatusQueries(settings.maxTimeForRegistration);
@@ -1470,6 +1520,20 @@ export default class FishStockingsService extends moleculer.Service {
       }
     } else {
       ctx.params.assignedTo = ctx.meta.user.id;
+    }
+  }
+
+  @Method
+  validateFishOrigin(ctx: Context<any>, existingFishStocking?: FishStocking) {
+    if(ctx.params.fishOrigin || ctx.params.fishOriginReservoir || ctx.params.fishOriginCompanyName) {
+      const fishOrigin = ctx.params.fishOrigin || existingFishStocking?.fishOrigin;
+      const fishOriginReservoir = ctx.params.fishOriginReservoir || existingFishStocking?.fishOriginReservoir;
+      const fishOriginCompanyName = ctx.params.fishOriginCompanyName || existingFishStocking?.fishOriginCompanyName;
+      const fishCaughtInvalid = fishOrigin === FishOrigin.CAUGHT && !fishOriginReservoir;
+      const fishGrownInvalid = fishOrigin === FishOrigin.GROWN && !fishOriginCompanyName;
+      if(fishCaughtInvalid || fishGrownInvalid) {
+        throw new moleculer.Errors.ValidationError('Invalid fish origin');
+      }
     }
   }
 
