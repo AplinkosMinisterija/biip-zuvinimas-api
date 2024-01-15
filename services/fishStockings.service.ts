@@ -429,8 +429,7 @@ export type FishStocking<
           );
         },
       },
-      //TODO: refaktor  so that  mandatory would not be virtual field
-      mandatory: {
+      mandatory: { //TODO: mandatory flag could be part of location
         virtual: true,
         get: async ({ entity, ctx }: FieldHookCallback) => {
           const area = entity.location.area;
@@ -483,11 +482,11 @@ export default class FishStockingsService extends moleculer.Service {
       comment: 'string|optional',
       tenant: 'number|optional',
       stockingCustomer: 'number|optional',
-      fishOrigin: { type: "enum", values: Object.values(FishOrigin), required: false },
+      fishOrigin: { type: "enum", values: Object.values(FishOrigin), optional: true },
       fishOriginCompanyName: 'string|optional',
       fishOriginReservoir: {
         type: 'object',
-        required: false,
+        optional: true,
         properties: {
           area: 'number',
           name: "string",
@@ -499,7 +498,7 @@ export default class FishStockingsService extends moleculer.Service {
       geom: 'any|optional',
       batches: {
         type: 'array',
-        required: false,
+        optional: true,
         min: 1,
         items: {
           type: 'object',
@@ -517,7 +516,7 @@ export default class FishStockingsService extends moleculer.Service {
       assignedTo: 'number|optional',
       phone: {
         type: 'string',
-        required: false,
+        optional: true,
         pattern: /^(86|\+3706)\d{7}$/
       },
       waybillNo: 'string|optional',
@@ -527,7 +526,7 @@ export default class FishStockingsService extends moleculer.Service {
       waterTemp: 'number|optional',
       signatures: {
         type: 'array',
-        required: false,
+        optional: true,
         items: {
           type: 'object',
           properties: {
@@ -541,9 +540,7 @@ export default class FishStockingsService extends moleculer.Service {
     },
   })
   async updateFishStocking(ctx: Context<any, UserAuthMeta>) {
-
     const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});
-
     // Validate tenant
     if(ctx.params.tenant) {
       const tenant = await ctx.call('tenants.get', {id: ctx.params.tenant});
@@ -691,7 +688,7 @@ export default class FishStockingsService extends moleculer.Service {
       geom: 'any',
       batches: {
         type: 'array',
-        required: true,
+        optional: false,
         min: 1,
         items: {
           type: 'object',
@@ -707,7 +704,7 @@ export default class FishStockingsService extends moleculer.Service {
       fishOriginCompanyName: 'string|optional',
       fishOriginReservoir: {
         type: 'object',
-        required: false,
+        optional: true,
         properties: {
           area: 'number',
           name: "string",
@@ -795,7 +792,7 @@ export default class FishStockingsService extends moleculer.Service {
         type: 'number',
         columnType: 'integer',
         columnName: 'assignedToId',
-        required: false,
+        optional: true,
         populate: {
           action: 'users.resolve',
         },
@@ -829,7 +826,7 @@ export default class FishStockingsService extends moleculer.Service {
       fishOriginCompanyName: 'string|optional',
       fishOriginReservoir: {
         type: 'object',
-        required: false,
+        optional: true,
         properties: {
           area: 'number',
           name: "string",
