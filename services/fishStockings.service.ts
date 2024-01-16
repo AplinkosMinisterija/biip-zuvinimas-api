@@ -10,14 +10,13 @@ import {
   CommonFields,
   CommonPopulates,
   EntityChangedParams,
-  FieldHookCallback, FishOrigin, FishStockingStatus,
-  RestrictionType,
+  FieldHookCallback, FishOrigin, FishStockingErrorMessages, FishStockingStatus,
+  RestrictionType, StatusLabels,
   Table,
 } from '../types';
 import { AuthUserRole, UserAuthMeta } from './api.service';
 import { isEmpty, map } from 'lodash';
 import moleculer, { Context, RestSchema } from 'moleculer';
-
 import { DbContextParameters } from 'moleculer-db';
 import ApiGateway from 'moleculer-web';
 import XLSX from 'xlsx';
@@ -30,27 +29,15 @@ import { Setting } from './settings.service';
 import { Tenant } from './tenants.service';
 import { User } from './users.service';
 import {
-  canProfileModifyFishStocking,
+  canProfileModifyFishStocking, getStatus,
   isTimeBeforeReview,
-  validateAssignedTo,
+  validateAssignedTo, validateDeleteTime,
   validateFishData,
   validateFishOrigin,
   validateStockingCustomer
 } from "../utils/functions";
-import {FishAge} from "./fishAges.service";
 
 const Readable = require('stream').Readable;
-
-
-
-const statusLabels = {
-  [FishStockingStatus.UPCOMING]: "Nauja",
-  [FishStockingStatus.ONGOING]: "Įžuvinama",
-  [FishStockingStatus.CANCELED]: "Atšaukta",
-  [FishStockingStatus.FINISHED]: "Įžuvinta",
-  [FishStockingStatus.INSPECTED]: "Patikrinta",
-  [FishStockingStatus.NOT_FINISHED]: "Neužbaigta"
-};
 
 const BATCH_DATA_EXISTS_QUERY =
   'EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NOT NULL AND fb.deleted_at is NULL)';
@@ -63,47 +50,6 @@ const getStatusQueries = (maxTime: number) => ({
   [FishStockingStatus.UPCOMING]: `NOW() < date_trunc('day',event_time + '00:00:00') AND NOT ${BATCH_DATA_EXISTS_QUERY} AND canceled_at is NULL`,
   [FishStockingStatus.NOT_FINISHED]: `NOW() > date_trunc('day',event_time + '00:00:00') + INTERVAL '10 days' AND NOT ${BATCH_DATA_EXISTS_QUERY} AND canceled_at is NULL`,
 });
-
-const isCanceled = (fishStocking: any) => {
-  return !!fishStocking.canceledAt;
-};
-
-const isReviewed = (fishStocking: any, batches: FishBatch[]) => {
-  const batchesDataNotFilled = batches?.some((batch: any) => batch.reviewAmount === null);
-  return !batchesDataNotFilled;
-};
-
-const isInspected = (fishStocking: FishStocking, batches: FishBatch[]) => {
-  const reviewed = isReviewed(fishStocking, batches);
-  return reviewed && !isEmpty(fishStocking.signatures);
-};
-
-const isOngoing = (fishStocking: FishStocking, settings: Setting) => {
-  const eventTime = new Date(fishStocking.eventTime);
-  const start = startOfDay(eventTime);
-  const end = endOfDay(
-    add(eventTime, {
-      days: settings.maxTimeForRegistration,
-    }),
-  );
-  const today = new Date();
-  return isAfter(today, start) && isBefore(today, end);
-};
-
-const isUpcoming = (fishStocking: FishStocking) => {
-  const start = startOfDay(fishStocking.eventTime);
-  return isBefore(new Date(), start);
-};
-
-const isNotFinished = (fishStocking: FishStocking, settings: Setting) => {
-  const eventTime = new Date(fishStocking.eventTime);
-  const end = endOfDay(
-    add(eventTime, {
-      days: settings.maxTimeForRegistration,
-    }),
-  );
-  return isAfter(new Date(), end);
-};
 
 interface Fields extends CommonFields {
   id: number;
@@ -420,7 +366,7 @@ export type FishStocking<
 
           const settings: Setting = await ctx.call('settings.getSettings');
           return fishStockings.map((fishStocking) =>
-            this.getStatus(ctx, fishStocking, batchesByStocking[fishStocking.id], settings),
+            getStatus(ctx, fishStocking, batchesByStocking[fishStocking.id], settings),
           );
         },
       },
@@ -463,7 +409,6 @@ export type FishStocking<
       get: ['beforeSelect'],
       all: ['beforeSelect', 'handleSort'],
       export: ['beforeSelect', 'handleSort'],
-      remove: ['beforeDelete'],
     },
   },
 })
@@ -639,26 +584,27 @@ export default class FishStockingsService extends moleculer.Service {
   async cancel(ctx: Context<any, UserAuthMeta>) {
     const fishStocking = await this.resolveEntities(ctx, { id: ctx.params.id });
 
-    // Validate if user can cancel fishStocking
-    const tenantUserCanDelete = ctx.meta.profile && fishStocking.tenant && ctx.meta.profile === fishStocking.tenant;
-    const freelancerCanDelete = !ctx.meta.profile && !fishStocking.tenant && ctx.meta.user.id === fishStocking.assignedTo;
-    const canDelete =  tenantUserCanDelete || freelancerCanDelete;
-    if(!canDelete) {
-      throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
-        error: 'Unauthorized',
-      });
+    if(!fishStocking) {
+      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
     }
 
+    // Validate if user can cancel fishStocking
+    canProfileModifyFishStocking(ctx, fishStocking);
+
+    // Validate if delete time is not before event time
+    await validateDeleteTime(ctx, fishStocking);
+
     if (
-      fishStocking.status === FishStockingStatus.UPCOMING ||
-      fishStocking.status === FishStockingStatus.ONGOING ||
-      fishStocking.status === FishStockingStatus.NOT_FINISHED
+      fishStocking.status !== FishStockingStatus.UPCOMING ||
+      fishStocking.status !== FishStockingStatus.ONGOING ||
+      fishStocking.status !== FishStockingStatus.NOT_FINISHED
     ) {
-      return this.updateEntity(ctx, {
-        id: ctx.params.id,
-        canceledAt: new Date().toDateString(),
-      });
+      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
+    return this.updateEntity(ctx, {
+      id: ctx.params.id,
+      canceledAt: new Date().toDateString(),
+    });
   }
 
   @Action({
@@ -716,7 +662,7 @@ export default class FishStockingsService extends moleculer.Service {
     // Validate eventTime
     const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
     if(!timeBeforeReview) {
-      throw new moleculer.Errors.ValidationError('Invalid event time');
+      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
     }
 
     // Validate assignedTo
@@ -836,31 +782,18 @@ export default class FishStockingsService extends moleculer.Service {
     const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});
 
     if(!existingFishStocking) {
-      throw new moleculer.Errors.ValidationError('Invalid fish stocking');
+      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
     }
     // Validate fish stocking status
     if(![FishStockingStatus.UPCOMING, FishStockingStatus.ONGOING].some(status => status ===existingFishStocking.status)) {
-      throw new moleculer.Errors.ValidationError('Invalid fish stocking status');
+      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
 
     //Validate if user can edit fishStocking
     canProfileModifyFishStocking(ctx, existingFishStocking);
 
-    if(ctx.params.profile) {
-      const tenantUserCanEdit = ctx.meta.profile === existingFishStocking.tenant;
-      const stockingCustomerCanEdit = ctx.meta.profile === existingFishStocking.stockingCustomer;
-      if(!tenantUserCanEdit && !stockingCustomerCanEdit) {
-        throw new moleculer.Errors.ValidationError('Invalid tenant profile');
-      }
-    } else {
-      if(!existingFishStocking.tenant && ctx.meta.user.id !== existingFishStocking.assignedTo) {
-        throw new moleculer.Errors.ValidationError('Invalid user profile');
-      }
-    }
-
-    const assignedToChanged = !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
-
     // Validate assignedTo
+    const assignedToChanged = !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
     await validateAssignedTo(ctx);
 
     // If existing fish stocking time is within the time interval indicating that it is time to review fish stocking,
@@ -876,7 +809,7 @@ export default class FishStockingsService extends moleculer.Service {
       if(ctx.params.eventTime ) {
         const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
         if(!timeBeforeReview) {
-          throw new moleculer.Errors.ValidationError('Invalid event time');
+          throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
         }
       }
 
@@ -960,7 +893,7 @@ export default class FishStockingsService extends moleculer.Service {
     const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});
 
     if(!existingFishStocking) {
-      throw new moleculer.Errors.ValidationError('Invalid fish stocking id');
+      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
     }
 
     // Validate if user can review
@@ -968,7 +901,7 @@ export default class FishStockingsService extends moleculer.Service {
 
     // Validate if fishStocking can be reviewed
     if(existingFishStocking.status !== FishStockingStatus.ONGOING) {
-      throw new moleculer.Errors.ValidationError('Invalid fish stocking status');
+      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
 
     // if fishing is not finished and has to be reviewed, user can update review data of fishBatches.
@@ -1138,6 +1071,7 @@ export default class FishStockingsService extends moleculer.Service {
     rest: 'GET /export',
   })
   async export(ctx: Context<any>) {
+    //TODO: missing validations
     const data: any = await ctx.call('fishStockings.find', {
       ...ctx.params,
       populate: ['assignedTo', 'reviewedBy', 'batches', 'status'],
@@ -1173,7 +1107,7 @@ export default class FishStockingsService extends moleculer.Service {
           'Važtaraščio nr.': waybillNo || '',
           'Atsakingas asmuo': assignedTo || '',
           'Veterinarinio pažymėjimo Nr.': veterinaryApprovalNo || '',
-          'Būsena': statusLabels[status],
+          'Būsena': StatusLabels[status],
         });
       }
     });
@@ -1259,24 +1193,6 @@ export default class FishStockingsService extends moleculer.Service {
       }
     }
     return ctx;
-  }
-
-  @Method
-  getStatus(ctx: Context, fishStocking: FishStocking, batches: FishBatch[], settings: Setting) {
-    if (isCanceled(fishStocking)) {
-      return FishStockingStatus.CANCELED;
-    } else if (isInspected(fishStocking, batches)) {
-      return FishStockingStatus.INSPECTED;
-    } else if (isReviewed(fishStocking, batches)) {
-      return FishStockingStatus.FINISHED;
-    } else if (isOngoing(fishStocking, settings)) {
-      return FishStockingStatus.ONGOING;
-    } else if (isUpcoming(fishStocking)) {
-      return FishStockingStatus.UPCOMING;
-    } else if (isNotFinished(fishStocking, settings)) {
-      return FishStockingStatus.NOT_FINISHED;
-    }
-    return null;
   }
 
   @Method
@@ -1426,40 +1342,6 @@ export default class FishStockingsService extends moleculer.Service {
     return q;
   }
 
-  @Method
-  async beforeDelete(ctx: Context<any, UserAuthMeta>) {
-    //TODO: move validations to delete action
-    if (ctx.meta.user) {
-      const fishStocking: FishStocking[] = await ctx.call('fishStockings.find', {
-        query: {
-          id: ctx.params.id,
-          tenantId: ctx.meta.profile || null,
-          createdBy: ctx.meta.user.id,
-        },
-      });
-      if (!fishStocking[0]) {
-        throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
-          error: 'Unauthorized',
-          scope: false,
-        });
-      }
-      const settings: Setting = await ctx.call('settings.getSettings');
-      const minTime = settings.minTimeTillFishStocking;
-      const maxPermittedTime = sub(fishStocking[0].eventTime, {
-        days: minTime,
-      });
-
-      const validTime = isBefore(new Date(), maxPermittedTime);
-      if (!validTime) {
-        throw new moleculer.Errors.MoleculerClientError(
-          'Current time is after permitted deletion time',
-          422,
-          'INVALID_TIME',
-        );
-      }
-    }
-    return ctx;
-  }
 
   @Event()
   async 'fishBatches.*'(ctx: Context<EntityChangedParams<FishBatch>>) {

@@ -113,3 +113,24 @@ export enum FishStockingStatus {
   INSPECTED = 'INSPECTED',
   CANCELED = 'CANCELED',
 }
+export enum FishStockingErrorMessages {
+  INVALID_ID = 'Invalid fishStocking id',
+  INVALID_STATUS = 'Invalid fish stocking status',
+  INVALID_EVENT_TIME = 'Invalid event time',
+  INVALID_ASSIGNED_TO_ID = 'Invalid "assignedTo" id',
+  ASSIGNED_TO_NOT_DEFINED = '"assignedTo" not defined',
+  INVALID_FISH_ORIGIN = 'Invalid fish origin',
+  INVALID_STOCKING_CUSTOMER = 'Invalid "stockingCustomer" id',
+  INVALID_FISH_AGE = 'Invalid "fishAge" id',
+  INVALID_FISH_TYPE = 'Invalid "fishType" id',
+  INVALID_DELETE_TIME = 'Current time is after permitted deletion time',
+}
+
+export const StatusLabels = {
+  [FishStockingStatus.UPCOMING]: "Nauja",
+  [FishStockingStatus.ONGOING]: "Įžuvinama",
+  [FishStockingStatus.CANCELED]: "Atšaukta",
+  [FishStockingStatus.FINISHED]: "Įžuvinta",
+  [FishStockingStatus.INSPECTED]: "Patikrinta",
+  [FishStockingStatus.NOT_FINISHED]: "Neužbaigta"
+};

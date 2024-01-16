@@ -1,12 +1,15 @@
 import moleculer, { Context } from 'moleculer';
 import { AuthUserRole, UserAuthMeta } from '../services/api.service';
 import { TenantUserRole } from '../services/tenantUsers.service';
-import {FishOrigin, throwNoRightsError} from '../types';
+import {FishOrigin, FishStockingErrorMessages, FishStockingStatus, throwNoRightsError} from '../types';
 import {Setting} from "../services/settings.service";
 import {FishType} from "../services/fishTypes.service";
 import {FishAge} from "../services/fishAges.service";
 import {FishStocking} from "../services/fishStockings.service";
 import ApiGateway from "moleculer-web";
+import {FishBatch} from "../services/fishBatches.service";
+import {isEmpty} from "lodash";
+import {add, endOfDay, isAfter, isBefore, startOfDay, sub} from "date-fns";
 
 export const validateCanManageTenantUser = (ctx: Context<any, UserAuthMeta>, err: string) => {
   const { profile } = ctx.meta;
@@ -32,6 +35,19 @@ export const isTimeBeforeReview = async (ctx: Context<any>, time: Date) => {
   return timeDiff >= (24*60*60*1000) * settings.minTimeTillFishStocking;
 }
 
+export const validateDeleteTime = async (ctx: Context<any>, fishStocking: FishStocking) => {
+  const settings: Setting = await ctx.call('settings.getSettings');
+  const minTime = settings.minTimeTillFishStocking;
+  const maxPermittedTime = sub(fishStocking.eventTime, {
+    days: minTime,
+  });
+
+  const validTime = isBefore(new Date(), maxPermittedTime);
+  if (!validTime) {
+    throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_DELETE_TIME);
+  }
+}
+
 export const  validateFishData = async(ctx: Context<any>) => {
   //TODO: no duplicate fishTypes allowed
 
@@ -44,7 +60,7 @@ export const  validateFishData = async(ctx: Context<any>) => {
   });
 
   if(fishTypesIds.length !== fishTypes.length) {
-    throw new moleculer.Errors.ValidationError('Invalid fishType id');
+    throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_FISH_TYPE);
   }
 
   // Validate batches fishAge
@@ -60,7 +76,7 @@ export const  validateFishData = async(ctx: Context<any>) => {
     }
   });
   if(fishAgesIds.length !== fishAges.length) {
-    throw new moleculer.Errors.ValidationError('Invalid fishAge id');
+    throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_FISH_AGE);
   }
 }
 
@@ -70,7 +86,7 @@ export const validateStockingCustomer = async(ctx: Context<any>) => {
       id: ctx.params.stockingCustomer,
     });
     if(!stockingCustomer) {
-      throw new moleculer.Errors.ValidationError('Invalid "stockingCustomer" id');
+      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STOCKING_CUSTOMER);
     }
   }
 }
@@ -86,10 +102,12 @@ export const validateAssignedTo = async (ctx: Context<any, UserAuthMeta>) => {
         tenant: ctx.meta.profile,
       });
       if(!tenantUser) {
-        throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
+        throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ASSIGNED_TO_ID);
       }
     } else {
-      throw new moleculer.Errors.ValidationError('"assignedTo" must be defined');
+      throw new moleculer.Errors.ValidationError(
+          FishStockingErrorMessages.ASSIGNED_TO_NOT_DEFINED
+      );
     }
   } else {
     ctx.params.assignedTo = ctx.meta.user.id;
@@ -105,7 +123,7 @@ export const validateFishOrigin = async (ctx: Context<any>, existingFishStocking
     const fishCaughtInvalid = fishOrigin === FishOrigin.CAUGHT && !fishOriginReservoir;
     const fishGrownInvalid = fishOrigin === FishOrigin.GROWN && !fishOriginCompanyName;
     if(fishCaughtInvalid || fishGrownInvalid) {
-      throw new moleculer.Errors.ValidationError('Invalid fish origin');
+      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_FISH_ORIGIN);
     }
 
   }
@@ -130,6 +148,64 @@ export const canProfileModifyFishStocking = (ctx: Context<any, UserAuthMeta>, ex
       });
     }
   }
+}
+
+export const isCanceled = (fishStocking: any) => {
+  return !!fishStocking.canceledAt;
+};
+
+export const isReviewed = (fishStocking: any, batches: FishBatch[]) => {
+  const batchesDataNotFilled = batches?.some((batch: any) => batch.reviewAmount === null);
+  return !batchesDataNotFilled;
+};
+
+export const isInspected = (fishStocking: FishStocking, batches: FishBatch[]) => {
+  const reviewed = isReviewed(fishStocking, batches);
+  return reviewed && !isEmpty(fishStocking.signatures);
+};
+
+export const isOngoing = (fishStocking: FishStocking, settings: Setting) => {
+  const eventTime = new Date(fishStocking.eventTime);
+  const start = startOfDay(eventTime);
+  const end = endOfDay(
+      add(eventTime, {
+        days: settings.maxTimeForRegistration,
+      }),
+  );
+  const today = new Date();
+  return isAfter(today, start) && isBefore(today, end);
+};
+
+export const isUpcoming = (fishStocking: FishStocking) => {
+  const start = startOfDay(fishStocking.eventTime);
+  return isBefore(new Date(), start);
+};
+
+export const isNotFinished = (fishStocking: FishStocking, settings: Setting) => {
+  const eventTime = new Date(fishStocking.eventTime);
+  const end = endOfDay(
+      add(eventTime, {
+        days: settings.maxTimeForRegistration,
+      }),
+  );
+  return isAfter(new Date(), end);
+};
+
+export const getStatus = (ctx: Context, fishStocking: FishStocking, batches: FishBatch[], settings: Setting) => {
+  if (isCanceled(fishStocking)) {
+    return FishStockingStatus.CANCELED;
+  } else if (isInspected(fishStocking, batches)) {
+    return FishStockingStatus.INSPECTED;
+  } else if (isReviewed(fishStocking, batches)) {
+    return FishStockingStatus.FINISHED;
+  } else if (isOngoing(fishStocking, settings)) {
+    return FishStockingStatus.ONGOING;
+  } else if (isUpcoming(fishStocking)) {
+    return FishStockingStatus.UPCOMING;
+  } else if (isNotFinished(fishStocking, settings)) {
+    return FishStockingStatus.NOT_FINISHED;
+  }
+  return null;
 }
 
 
