@@ -5,9 +5,8 @@ import { Action, Service } from 'moleculer-decorators';
 
 import PostgisMixin from 'moleculer-postgis';
 import DbConnection from '../mixins/database.mixin';
-import { RestrictionType, Table } from '../types';
+import {FishStockingStatus, RestrictionType, Table} from '../types';
 import { FishAge } from './fishAges.service';
-import { FishStockingStatus } from './fishStockings.service';
 import { FishType } from './fishTypes.service';
 
 interface Fields {

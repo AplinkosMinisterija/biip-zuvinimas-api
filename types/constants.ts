@@ -99,3 +99,17 @@ export const COMMON_DEFAULT_SCOPES = ['notDeleted'];
 export function throwNoRightsError(message?: string): Errors.MoleculerError {
   throw new Moleculer.Errors.MoleculerClientError(message || `No rights.`, 401, 'NO_RIGHTS');
 }
+
+export enum FishOrigin {
+  GROWN = 'GROWN',
+  CAUGHT = 'CAUGHT',
+}
+
+export enum FishStockingStatus {
+  UPCOMING = 'UPCOMING',
+  ONGOING = 'ONGOING',
+  NOT_FINISHED = 'NOT_FINISHED',
+  FINISHED = 'FINISHED',
+  INSPECTED = 'INSPECTED',
+  CANCELED = 'CANCELED',
+}

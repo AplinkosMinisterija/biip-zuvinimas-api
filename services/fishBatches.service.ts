@@ -20,9 +20,9 @@ import {UserAuthMeta} from "./api.service";
 
 
 interface Fields extends CommonFields {
+  id: number;
   fishType: FishType;
   fishAge: FishAge;
-  id?: number;
   amount?: number;
   weight?: number;
   reviewAmount?: number;
@@ -95,13 +95,6 @@ export type FishBatch<
   },
 })
 export default class FishBatchesService extends moleculer.Service {
-  // TODO: remove after old data migrate
-  @Action()
-  createPermissive(ctx: Context) {
-    return this.createEntity(ctx, ctx.params, {
-      permissive: true,
-    });
-  }
 
   @Action({
     params: {
@@ -115,7 +108,6 @@ export default class FishBatchesService extends moleculer.Service {
       fishStocking: number;
     }>,
   ) {
-    console.log('batches!!!', ctx.params.batches)
     if (ctx.params.batches) {
       const promises = ctx.params.batches?.map((batch) => {
         return ctx.call('fishBatches.create', {
@@ -136,16 +128,16 @@ export default class FishBatchesService extends moleculer.Service {
         type: 'array',
         required: false,
         properties: {
-          id: 'number|optional',
-          fishType: 'number',
-          fishAge: 'number',
-          amount: 'number',
+          id: 'number|integer|positive|optional',
+          fishType: 'number|integer|positive',
+          fishAge: 'number|integer|positive',
+          amount: 'number|integer|positive',
           weight: 'number|optional',
-          reviewAmount: 'number|optional',
+          reviewAmount: 'number|integer|positive|optional',
           reviewWeight: 'number|optional',
         }
       },
-      fishStocking: 'number|optional',
+      fishStocking: 'number|integer|positive|optional',
     },
   })
   //for admin
@@ -155,28 +147,9 @@ export default class FishBatchesService extends moleculer.Service {
       fishStocking: number;
     }, UserAuthMeta>,
   ) {
-    const batches = ctx.params.batches?.map(item => {
-      if (
-          typeof item !== "object" ||
-          item === null ||
-          Array.isArray(item) ||
-          typeof item.id !== "number" ||
-          !(typeof item.reviewAmount == "number" && Number.isInteger(item.reviewAmount)) ||
-          typeof item.reviewWeight !== "number"
-      ) {
-        throw new moleculer.Errors.ValidationError('Invalid batch data');
-      } else {
-        return {
-          id: item.id,
-          amount: item.amount,
-          weight: item.weight,
-          reviewAmount: item.reviewAmount,
-          reviewWeight: item.reviewWeight,
-        }
-      }
-    });
-    await this.deleteExistingBatches(ctx, ctx.params.fishStocking, batches);
-    await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, batches);
+
+    await this.deleteExistingBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
+    await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
     return await this.findEntities(ctx, {
       query: {
         fishStocking: ctx.params.fishStocking || 1,
@@ -192,15 +165,15 @@ export default class FishBatchesService extends moleculer.Service {
         items: {
           type: 'object',
           properties: {
-            id: 'number|optional',
-            fishType: 'number|optional',
-            fishAge: 'number|optional',
-            amount: 'number',
+            id: 'number|integer|positive|optional',
+            fishType: 'number|integer|positive|optional',
+            fishAge: 'number|integer|positive|optional',
+            amount: 'number|integer|positive',
             weight: 'number|optional'
           }
         }
       },
-      fishStocking: 'number|optional',
+      fishStocking: 'number|integer|positive|optional',
     },
   })
   async updateRegisteredBatches(
@@ -209,27 +182,9 @@ export default class FishBatchesService extends moleculer.Service {
         fishStocking: number;
       }, UserAuthMeta>,
   ) {
-    const batches = ctx.params.batches?.map(item => {
-      if (
-          typeof item !== "object" ||
-          item === null ||
-          Array.isArray(item) ||
-          !["undefined", "number"].some((type)=> type === typeof item.id) ||
-          !["undefined", "number"].some((type)=> type === typeof item.weight) ||
-          !(typeof item.amount == "number" && Number.isInteger(item.amount))
-      ) {
-        throw new moleculer.Errors.ValidationError('Invalid batch data');
-      } else {
-        return {
-          id: item.id,
-          amount: item.amount,
-          weight: item.weight,
-        }
-      }
-    });
 
-    await this.deleteExistingBatches(ctx, ctx.params.fishStocking, batches);
-    await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, batches);
+    await this.deleteExistingBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
+    await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
 
     return await this.findEntities(ctx, {
       query: {
@@ -246,13 +201,13 @@ export default class FishBatchesService extends moleculer.Service {
         items: {
           type: 'object',
           properties: {
-            id: 'number',
-            reviewAmount: 'number',
+            id: 'number|integer|positive',
+            reviewAmount: 'number|integer|positive',
             reviewWeight: 'number|optional'
           }
         }
       },
-      fishStocking: 'number|optional',
+      fishStocking: 'number|integer|positive|optional',
     },
   })
   async reviewBatches(
@@ -261,27 +216,10 @@ export default class FishBatchesService extends moleculer.Service {
         fishStocking: number;
       }, UserAuthMeta>,
   ) {
+    console.log('reviewBatches', ctx.params.batches);
 
-    const batches = ctx.params.batches?.map(item => {
-      if (
-          typeof item !== "object" ||
-          item === null ||
-          Array.isArray(item) ||
-          typeof item.id !== "number" ||
-          !(typeof item.reviewAmount == "number" && Number.isInteger(item.reviewAmount)) ||
-          !["undefined", "number"].some((type)=> type === typeof item.reviewWeight)
-      ) {
-        throw new moleculer.Errors.ValidationError('Invalid batch data');
-      } else {
-        return {
-          id: item.id,
-          reviewAmount: item.reviewAmount,
-          reviewWeight: item.reviewWeight,
-        }
-      }
-    });
-    await this.deleteExistingBatches(ctx, ctx.params.fishStocking, batches);
-    await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, batches);
+    await this.deleteExistingBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
+    await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
     return await this.findEntities(ctx, {
       query: {
         fishStocking: ctx.params.fishStocking || 1,
@@ -301,7 +239,7 @@ export default class FishBatchesService extends moleculer.Service {
     });
     const deleteBatches = filter(
         existingBatches,
-        (item: FishBatch) => batches?.some((batch) => batch.id === item.id),
+        (item: FishBatch) => batches?.some((batch) => batch.id !== item.id),
     );
     const promises = map(deleteBatches, (batch: FishBatch) => this.removeEntity(ctx, batch));
     await Promise.all(promises);
