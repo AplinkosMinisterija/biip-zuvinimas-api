@@ -131,11 +131,11 @@ export const validateFishOrigin = async (ctx: Context<any>, existingFishStocking
 
 export const canProfileModifyFishStocking = (ctx: Context<any, UserAuthMeta>, existingFishStocking: FishStocking) => {
   if(ctx.meta.profile) {
-    const tenantUserCanModify = ctx.meta.profile === existingFishStocking.tenant;
+    const tenantUserCanModify = ctx.meta.profile == existingFishStocking.tenant;
     const stockingCustomerCanModify = ctx.meta.profile == existingFishStocking.stockingCustomer;
     if(!tenantUserCanModify && !stockingCustomerCanModify) {
       throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
-        error: 'NoMunicipalityPermission',
+        error: 'Invalid tenant profile',
       });
     }
   } else {
@@ -144,7 +144,7 @@ export const canProfileModifyFishStocking = (ctx: Context<any, UserAuthMeta>, ex
     const canFreelancerModify = isFreelancer && !isTenantFishStocking &&  ctx.meta.user.id !== existingFishStocking.assignedTo;
     if(canFreelancerModify) {
       throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
-        error: 'NoMunicipalityPermission',
+        error: 'Invalid user profile',
       });
     }
   }

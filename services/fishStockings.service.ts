@@ -779,8 +779,7 @@ export default class FishStockingsService extends moleculer.Service {
     },
   })
   async updateRegistration(ctx: Context<any, UserAuthMeta>) {
-    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});
-
+    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});;
     if(!existingFishStocking) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
     }
@@ -788,22 +787,22 @@ export default class FishStockingsService extends moleculer.Service {
     if(![FishStockingStatus.UPCOMING, FishStockingStatus.ONGOING].some(status => status ===existingFishStocking.status)) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
-
     //Validate if user can edit fishStocking
     canProfileModifyFishStocking(ctx, existingFishStocking);
-
     // Validate assignedTo
     const assignedToChanged = !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
     await validateAssignedTo(ctx);
-
     // If existing fish stocking time is within the time interval indicating that it is time to review fish stocking,
     // then most of the data cannot be edited except assignedTo.
     if(existingFishStocking.status === FishStockingStatus.ONGOING)  {
       if(assignedToChanged) {
-        return this.updateEntity(ctx, {assignedTo: ctx.params.assignedTo});
+        try{
+          return this.updateEntity(ctx, {assignedTo: ctx.params.assignedTo});
+        } catch (e) {
+          throw new moleculer.Errors.ValidationError('Could not update fishStocking');
+        }
       }
     }
-
     if(existingFishStocking.status === FishStockingStatus.UPCOMING) {
       // Validate event time
       if(ctx.params.eventTime ) {
@@ -812,12 +811,10 @@ export default class FishStockingsService extends moleculer.Service {
           throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
         }
       }
-
       // Validate fishType & fishAge
       if(ctx.params.batches) {
         await validateFishData(ctx);
       }
-
       // Validate stocking customer
       await validateStockingCustomer(ctx);
 
@@ -826,7 +823,7 @@ export default class FishStockingsService extends moleculer.Service {
       //if fish stocking is not finished yet, user can add, remove and update batches.
       await ctx.call('fishBatches.updateRegisteredBatches', {
         batches: ctx.params.batches,
-        fishStocking: Number(ctx.params.id),
+        fishStocking: ctx.params.id,
       });
     }
 

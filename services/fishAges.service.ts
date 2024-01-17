@@ -49,18 +49,19 @@ export type FishAge<
     scopes: {
       ...COMMON_SCOPES,
     },
-    actions: {
-      remove: {
-        types: [RestrictionType.ADMIN],
-      },
-      create: {
-        types: [RestrictionType.ADMIN],
-      },
-      update: {
-        types: [RestrictionType.ADMIN],
-      },
-    },
+
     defaultScopes: [...COMMON_DEFAULT_SCOPES],
+  },
+  actions: {
+    remove: {
+      auth: RestrictionType.ADMIN,
+    },
+    create: {
+      auth: RestrictionType.ADMIN,
+    },
+    update: {
+      auth: RestrictionType.ADMIN,
+    },
   },
 })
 export default class FishAgesService extends moleculer.Service {
