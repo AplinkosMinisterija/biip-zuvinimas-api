@@ -1345,6 +1345,8 @@ export default class FishStockingsService extends moleculer.Service {
 
   @Event()
   async 'fishBatches.*'(ctx: Context<EntityChangedParams<FishBatch>>) {
+    //Generates an object with amounts of fish stocked and stores in the database.
+    //TODO: could be virtual field instead
     const type = ctx.params.type;
     let fishBatches = ctx.params.data;
     if (!Array.isArray(fishBatches)) {

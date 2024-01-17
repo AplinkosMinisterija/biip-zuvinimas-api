@@ -37,6 +37,7 @@ export type PublishingFishStocking<
   F extends keyof (Fields & Populates) = keyof Fields,
 > = Table<Fields, Populates, P, F>;
 
+//TODO: might be unnecessary if fishBatches refactored
 @Service({
   name: 'publishing.fishStockings',
   mixins: [
@@ -63,12 +64,10 @@ export type PublishingFishStocking<
         primaryKey: true,
         secure: true,
       },
-
       eventTime: {
         type: 'date',
         columnType: 'datetime',
       },
-
       geom: {
         type: 'any',
         geom: {

@@ -32,6 +32,7 @@ export type FishStockingPhoto<
   F extends keyof (Fields & Populates) = keyof Fields,
 > = Table<Fields, Populates, P, F>;
 
+//TODO: could be refactored to store fishStocking photos as json object in fishStockingsTable instead of separate database table
 @Service({
   name: 'fishStockingPhotos',
   mixins: [
@@ -132,7 +133,6 @@ export default class FishStockingPhotosService extends moleculer.Service {
     const entity: FishStockingPhoto = await this.resolveEntities(ctx, {
       id: Number(ctx.params.id),
     });
-
     try {
       await ctx.call('minio.removeObject', {
         bucketName: process.env.MINIO_BUCKET,
@@ -141,7 +141,6 @@ export default class FishStockingPhotosService extends moleculer.Service {
     } catch (e: unknown) {
       this.logger.error(e);
     }
-
     return this.removeEntity(ctx);
   }
   @Method

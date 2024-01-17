@@ -57,10 +57,12 @@ export type FishAge<
   name: 'public',
 })
 export default class FishAgesService extends moleculer.Service {
+
   @Action({
     rest: 'GET /fishStockings',
     auth: RestrictionType.PUBLIC,
   })
+  //TODO: could be moved to fishStockings service
   async getPublicFishStockings(ctx: Context<any>) {
     const params = {
       ...ctx.params,
@@ -83,6 +85,7 @@ export default class FishAgesService extends moleculer.Service {
     rest: 'GET /statistics',
     auth: RestrictionType.PUBLIC,
   })
+  //TODO: could be moved to fishStockings service
   async getStatistics(ctx: Context<any>) {
     const completedFishStockings: FishStocking[] = await ctx.call('fishStockings.count', {
       filter: {
