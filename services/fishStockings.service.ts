@@ -31,7 +31,7 @@ import { User } from './users.service';
 import {
   canProfileModifyFishStocking, getStatus,
   isTimeBeforeReview,
-  validateAssignedTo, validateDeleteTime,
+  validateAssignedTo,
   validateFishData,
   validateFishOrigin,
   validateStockingCustomer
@@ -124,6 +124,7 @@ export type FishStocking<
     DbConnection({
       createActions: {
         update: false,
+        create: false,
       },
     }),
     GeometriesMixin,
@@ -411,6 +412,11 @@ export type FishStocking<
       export: ['beforeSelect', 'handleSort'],
     },
   },
+  actions: {
+    delete: {
+      auth: RestrictionType.ADMIN,
+    }
+  }
 })
 export default class FishStockingsService extends moleculer.Service {
 
@@ -591,9 +597,6 @@ export default class FishStockingsService extends moleculer.Service {
     // Validate if user can cancel fishStocking
     canProfileModifyFishStocking(ctx, fishStocking);
 
-    // Validate if delete time is not before event time
-    await validateDeleteTime(ctx, fishStocking);
-
     if (
       fishStocking.status !== FishStockingStatus.UPCOMING ||
       fishStocking.status !== FishStockingStatus.ONGOING ||
@@ -601,6 +604,12 @@ export default class FishStockingsService extends moleculer.Service {
     ) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
+
+    //if fish stocking is still in upcoming state, then it can be deleted.
+    if(fishStocking.status === FishStockingStatus.UPCOMING) {
+      return this.removeEntity(ctx, {id: fishStocking.id});
+    }
+    //else it should be canceled
     return this.updateEntity(ctx, {
       id: ctx.params.id,
       canceledAt: new Date().toDateString(),

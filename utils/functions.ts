@@ -35,19 +35,6 @@ export const isTimeBeforeReview = async (ctx: Context<any>, time: Date) => {
   return timeDiff >= (24*60*60*1000) * settings.minTimeTillFishStocking;
 }
 
-export const validateDeleteTime = async (ctx: Context<any>, fishStocking: FishStocking) => {
-  const settings: Setting = await ctx.call('settings.getSettings');
-  const minTime = settings.minTimeTillFishStocking;
-  const maxPermittedTime = sub(fishStocking.eventTime, {
-    days: minTime,
-  });
-
-  const validTime = isBefore(new Date(), maxPermittedTime);
-  if (!validTime) {
-    throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_DELETE_TIME);
-  }
-}
-
 export const  validateFishData = async(ctx: Context<any>) => {
   //TODO: no duplicate fishTypes allowed
 
