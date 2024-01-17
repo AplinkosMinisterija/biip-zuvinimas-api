@@ -239,7 +239,10 @@ export default class FishBatchesService extends moleculer.Service {
     });
     const deleteBatches = filter(
         existingBatches,
-        (item: FishBatch) => batches?.some((batch) => batch.id !== item.id),
+        (existingBatch: FishBatch) => {
+          const batchToUpdate = batches?.find((batch) =>  batch.id && existingBatch.id == batch.id);
+          return !batchToUpdate;
+        },
     );
     const promises = map(deleteBatches, (batch: FishBatch) => this.removeEntity(ctx, batch));
     await Promise.all(promises);
