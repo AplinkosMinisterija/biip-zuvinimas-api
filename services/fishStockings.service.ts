@@ -1,6 +1,5 @@
 'use strict';
 
-import { add, endOfDay, isAfter, isBefore, startOfDay, sub } from 'date-fns';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
 import { GeomFeatureCollection, coordinatesToGeometry, geometryToGeom } from '../modules/geometry';
 import {
@@ -239,7 +238,7 @@ export type FishStocking<
       },
       phone: {
         type: 'string',
-        required: true,
+        required: false,
         pattern: /^(86|\+3706)\d{7}$/
       },
       reviewedBy: {
@@ -337,7 +336,7 @@ export type FishStocking<
           email: 'string|optional',
           phone: {
             type: 'string',
-            required: false,
+            required: true,
             pattern: /^(86|\+3706)\d{7}$/
           },
           organization: 'string',
@@ -413,7 +412,7 @@ export type FishStocking<
     },
   },
   actions: {
-    delete: {
+    remove: {
       auth: RestrictionType.ADMIN,
     }
   }
@@ -461,6 +460,7 @@ export default class FishStockingsService extends moleculer.Service {
       },
       assignedTo: 'number|optional',
       phone: {
+        // TODO: freelancer might not have phone number and currently it is not required for freelancer to enter phone number in FishStocking registration form.
         type: 'string',
         optional: true,
         pattern: /^(86|\+3706)\d{7}$/
@@ -588,7 +588,7 @@ export default class FishStockingsService extends moleculer.Service {
     auth: RestrictionType.USER,
   })
   async cancel(ctx: Context<any, UserAuthMeta>) {
-    const fishStocking = await this.resolveEntities(ctx, { id: ctx.params.id });
+    const fishStocking = await this.resolveEntities(ctx, { id: ctx.params.id, populate: ['status'] });
 
     if(!fishStocking) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
@@ -596,10 +596,10 @@ export default class FishStockingsService extends moleculer.Service {
 
     // Validate if user can cancel fishStocking
     canProfileModifyFishStocking(ctx, fishStocking);
-
+console.log('cancelFishStocking', fishStocking);
     if (
-      fishStocking.status !== FishStockingStatus.UPCOMING ||
-      fishStocking.status !== FishStockingStatus.ONGOING ||
+      fishStocking.status !== FishStockingStatus.UPCOMING &&
+      fishStocking.status !== FishStockingStatus.ONGOING &&
       fishStocking.status !== FishStockingStatus.NOT_FINISHED
     ) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
@@ -623,7 +623,9 @@ export default class FishStockingsService extends moleculer.Service {
     params: {
       eventTime: 'string',
       phone: {
+        // TODO: freelancer might not have phone number and currently it is not required for freelancer to enter phone number in FishStocking registration form.
         type: 'string',
+        optional: true,
         pattern: /^(86|\+3706)\d{7}$/
       },
       assignedTo: 'number|integer|convert',
@@ -734,7 +736,9 @@ export default class FishStockingsService extends moleculer.Service {
       id: 'number|convert',
       eventTime: 'string',
       phone: {
+        // TODO: freelancer might not have phone number and currently it is not required for freelancer to enter phone number in FishStocking registration form.
         type: 'string',
+        optional: true,
         pattern: /^(86|\+3706)\d{7}$/
       },
       assignedTo: {
@@ -905,12 +909,12 @@ export default class FishStockingsService extends moleculer.Service {
     // Validate if user can review
     canProfileModifyFishStocking(ctx, existingFishStocking);
 
-    // Validate if fishStocking can be reviewed
+    // Validate if fishStocking status, it must be ONGOING.
     if(existingFishStocking.status !== FishStockingStatus.ONGOING) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
 
-    // if fishing is not finished and has to be reviewed, user can update review data of fishBatches.
+    // if fishStocking is ONGOING, user can update fishBatches review data.
     await ctx.call('fishBatches.reviewBatches', {
       batches: ctx.params.batches,
       fishStocking: ctx.params.id,
