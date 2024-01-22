@@ -449,11 +449,11 @@ export default class FishStockingsService extends moleculer.Service {
           type: 'object',
           properties: {
             id: 'number|optional',
-            fishType: 'number',
-            fishAge: 'number',
-            amount: 'number',
-            weight: 'number|optional',
-            reviewAmount: 'number|optional',
+            fishType: 'number|integer|positive|convert',
+            fishAge: 'number|integer|positive|convert',
+            amount: 'number|integer|positive|convert',
+            weight: 'number|optional|convert',
+            reviewAmount: 'number|integer|positive|optional',
             reviewWeight: 'number|optional'
           }
         }
@@ -863,9 +863,9 @@ console.log('cancelFishStocking', fishStocking);
         items: {
           type: 'object',
           properties: {
-            id: 'number',
-            reviewAmount: 'number',
-            reviewWeight: 'number|optional',
+            id: 'number|integer|positive|convert',
+            reviewAmount: 'number|integer|positive|convert',
+            reviewWeight: 'number|optional|convert',
           }
         }
       },
