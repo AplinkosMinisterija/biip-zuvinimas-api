@@ -137,11 +137,11 @@ export const canProfileModifyFishStocking = (ctx: Context<any, UserAuthMeta>, ex
   }
 }
 
-export const isCanceled = (fishStocking: any) => {
+export const isCanceled = (fishStocking: FishStocking) => {
   return !!fishStocking.canceledAt;
 };
 
-export const isReviewed = (fishStocking: any, batches: FishBatch[]) => {
+export const isReviewed = (fishStocking: FishStocking, batches: FishBatch[]) => {
   const batchesDataNotFilled = batches?.some((batch: any) => batch.reviewAmount === null);
   return !batchesDataNotFilled;
 };
