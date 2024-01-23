@@ -689,11 +689,7 @@ console.log('cancelFishStocking', fishStocking);
     await validateFishOrigin(ctx);
 
     // Assign tenant if necessary
-    if(!ctx.meta.profile) {
-      ctx.params.tenant = undefined;
-    } else {
-      ctx.params.tenant = ctx.meta.profile;
-    }
+    ctx.params.tenant = ctx.meta.profile;
 
     const fishStocking: FishStocking = await this.createEntity(ctx);
 
