@@ -596,7 +596,6 @@ export default class FishStockingsService extends moleculer.Service {
 
     // Validate if user can cancel fishStocking
     canProfileModifyFishStocking(ctx, fishStocking);
-console.log('cancelFishStocking', fishStocking);
     if (
       fishStocking.status !== FishStockingStatus.UPCOMING &&
       fishStocking.status !== FishStockingStatus.ONGOING &&
