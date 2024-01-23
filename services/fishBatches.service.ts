@@ -244,7 +244,7 @@ export default class FishBatchesService extends moleculer.Service {
   }
 
   @Method
-  async deleteExistingBatches(ctx: Context, fishStockingId: number, batches: any[]) {
+  async deleteExistingBatches(ctx: Context, fishStockingId: number, batches: FishBatch[]) {
     const existingBatches: FishBatch[] = await this.findEntities(ctx, {
       query: { fishStocking: fishStockingId },
     });
