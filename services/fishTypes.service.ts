@@ -139,7 +139,6 @@ export default class FishTypesService extends moleculer.Service {
 
   @Action()
   async updatePriority(ctx: Context) {
-    console.log('update priority');
     const fishTypes: FishType[] = await this.findEntities(ctx);
     for (const fishType of fishTypes) {
       const fishBatchesCount: number = await ctx.call('fishBatches.count', {
