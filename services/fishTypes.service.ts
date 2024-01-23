@@ -137,10 +137,7 @@ export default class FishTypesService extends moleculer.Service {
     ctx.params.sort = ctx.params.sort || '-priority,label';
   }
 
-  @Action({
-    rest: 'PATCH /priority',
-    auth: RestrictionType.ADMIN
-  })
+  @Action()
   async updatePriority(ctx: Context) {
     const fishTypes: FishType[] = await this.findEntities(ctx);
     for (const fishType of fishTypes) {
