@@ -98,8 +98,19 @@ export default class FishBatchesService extends moleculer.Service {
 
   @Action({
     params: {
-      batches: 'array',
-      fishStocking: 'number',
+      batches: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            fishType: 'number|integer|positive',
+            fishAge: 'number|integer|positive',
+            amount: 'number|integer|positive',
+            weight: 'number|positive|optional',
+          }
+        }
+      },
+      fishStocking: 'number|integer|positive',
     },
   })
   async createBatches(
@@ -109,16 +120,15 @@ export default class FishBatchesService extends moleculer.Service {
     }>,
   ) {
     if (ctx.params.batches) {
-      const promises = ctx.params.batches?.map((batch) => {
-        return ctx.call('fishBatches.create', {
+      const batches = ctx.params.batches?.map((batch) => ({
           fishType: batch.fishType,
           fishAge: batch.fishAge,
           amount: batch.amount,
           weight: batch.weight,
           fishStocking: ctx.params.fishStocking,
-        });
-      });
-      await Promise.all(promises);
+        })
+      )
+      await ctx.call('fishBatches.createMany', batches);
     }
   }
 
