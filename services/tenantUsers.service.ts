@@ -29,6 +29,8 @@ export enum TenantUserRole {
   OWNER = 'OWNER',
 }
 
+export const FREELANCER_PROFILE_ID = 'freelancer';
+
 interface Fields extends CommonFields {
   id: string;
   tenant: Tenant['id'];
@@ -267,7 +269,7 @@ export default class TenantUsersService extends moleculer.Service {
     });
     if (user.isFreelancer) {
       profiles.push({
-        id: 'freelancer',
+        id: FREELANCER_PROFILE_ID,
         name: `${user.firstName} ${user.lastName}`,
         freelancer: true,
         email: user.email,
