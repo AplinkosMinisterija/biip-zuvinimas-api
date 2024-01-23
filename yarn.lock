@@ -2660,9 +2660,9 @@ flatted@^3.2.9:
   integrity sha512-36yxDn5H7OFZQla0/jFJmbIKTdZAQHngCedGxiMmpNfEZM0sdEeT+WczLQrjK6D7o2aiyLYDnkw0R3JK0Qv1RQ==
 
 follow-redirects@^1.14.7:
-  version "1.15.3"
-  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.15.3.tgz#fe2f3ef2690afce7e82ed0b44db08165b207123a"
-  integrity sha512-1VzOtuEM8pC9SFU1E+8KfTjZyMztRsgEfwQl44z8A25uy13jSzTj6dyK2Df52iV0vgHCfBwLhDWevLn95w5v6Q==
+  version "1.15.4"
+  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.15.4.tgz#cdc7d308bf6493126b17ea2191ea0ccf3e535adf"
+  integrity sha512-Cr4D/5wlrb0z9dgERpUL3LrmPKVDsETIJhaCMeDfuFYcqa5bldGV6wBsAN6X/vxlXQtFBMrXdXxdL8CbDTGniw==
 
 for-each@^0.3.3:
   version "0.3.3"
@@ -4302,23 +4302,7 @@ moleculer-web@^0.10.5:
     qs "^6.11.0"
     serve-static "^1.14.1"
 
-moleculer@^0.14.0, moleculer@^0.14.29:
-  version "0.14.32"
-  resolved "https://registry.yarnpkg.com/moleculer/-/moleculer-0.14.32.tgz#93abe48d79f989fe4104d56534ff40d60c91318b"
-  integrity sha512-N5RXKS9Z01Gl6gLkf3snLgYbzU0bLci1WNEIuy2D+cjEg7i3XEArsiFHKnmNYWF6L5DajVrT8dw9EqGgvmjmOw==
-  dependencies:
-    args "^5.0.3"
-    eventemitter2 "^6.4.9"
-    fastest-validator "^1.17.0"
-    glob "^7.2.0"
-    ipaddr.js "^2.1.0"
-    kleur "^4.1.5"
-    lodash "^4.17.21"
-    lru-cache "^6.0.0"
-    node-fetch "^2.6.7"
-    recursive-watch "^1.1.4"
-
-moleculer@^0.14.31:
+moleculer@^0.14.0, moleculer@^0.14.29, moleculer@^0.14.31:
   version "0.14.32"
   resolved "https://registry.yarnpkg.com/moleculer/-/moleculer-0.14.32.tgz#93abe48d79f989fe4104d56534ff40d60c91318b"
   integrity sha512-N5RXKS9Z01Gl6gLkf3snLgYbzU0bLci1WNEIuy2D+cjEg7i3XEArsiFHKnmNYWF6L5DajVrT8dw9EqGgvmjmOw==
