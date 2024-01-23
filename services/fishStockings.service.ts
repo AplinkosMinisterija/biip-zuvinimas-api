@@ -489,10 +489,7 @@ export default class FishStockingsService extends moleculer.Service {
     const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});
     // Validate tenant
     if(ctx.params.tenant) {
-      const tenant = await ctx.call('tenants.get', {id: ctx.params.tenant});
-      if(!tenant) {
-        throw new moleculer.Errors.ValidationError('Invalid tenant');
-      }
+      await ctx.call('tenants.resolve', {id: ctx.params.tenant, throwIfNotExist: true})
     }
     // Validate stockingCustomer
     if(ctx.params.stockingCustomer) {
