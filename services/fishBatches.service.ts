@@ -176,7 +176,7 @@ export default class FishBatchesService extends moleculer.Service {
           }
         }
       },
-      fishStocking: 'number|integer|positive|optional',
+      fishStocking: 'number|integer|positive',
     },
   })
   async updateRegisteredBatches(
@@ -191,7 +191,7 @@ export default class FishBatchesService extends moleculer.Service {
 
     return await this.findEntities(ctx, {
       query: {
-        fishStocking: ctx.params.fishStocking || 1,
+        fishStocking: ctx.params.fishStocking,
       },
     });
   }
