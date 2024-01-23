@@ -511,7 +511,7 @@ export default class FishStockingsService extends moleculer.Service {
     if(ctx.params.assignedTo) {
       const tenant = ctx.params.tenant || existingFishStocking.tenant;
       if (tenant) { // Tenant fish stocking
-        const tenantUser = await ctx.call('tenantUsers.find', {
+        const tenantUser = await ctx.call('tenantUsers.findOne', {
           query: {
             tenant,
             user: ctx.params.assignedTo,
