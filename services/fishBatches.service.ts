@@ -127,14 +127,17 @@ export default class FishBatchesService extends moleculer.Service {
       batches: {
         type: 'array',
         required: false,
-        properties: {
-          id: 'number|integer|positive|optional',
-          fishType: 'number|integer|positive',
-          fishAge: 'number|integer|positive',
-          amount: 'number|integer|positive',
-          weight: 'number|optional',
-          reviewAmount: 'number|integer|positive|optional',
-          reviewWeight: 'number|optional',
+        items: {
+          type: 'object',
+          properties: {
+            id: 'number|integer|positive|optional',
+            fishType: 'number|integer|positive',
+            fishAge: 'number|integer|positive',
+            amount: 'number|integer|positive',
+            weight: 'number|optional',
+            reviewAmount: 'number|integer|positive|optional',
+            reviewWeight: 'number|optional',
+          }
         }
       },
       fishStocking: 'number|integer|positive|optional',
@@ -216,8 +219,6 @@ export default class FishBatchesService extends moleculer.Service {
         fishStocking: number;
       }, UserAuthMeta>,
   ) {
-    console.log('reviewBatches', ctx.params.batches);
-
     await this.deleteExistingBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
     await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
     return await this.findEntities(ctx, {
