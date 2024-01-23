@@ -210,7 +210,7 @@ export default class FishBatchesService extends moleculer.Service {
           }
         }
       },
-      fishStocking: 'number|integer|positive|optional',
+      fishStocking: 'number|integer|positive',
     },
   })
   async reviewBatches(
@@ -223,7 +223,7 @@ export default class FishBatchesService extends moleculer.Service {
     await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
     return await this.findEntities(ctx, {
       query: {
-        fishStocking: ctx.params.fishStocking || 1,
+        fishStocking: ctx.params.fishStocking,
       },
     });
   }
