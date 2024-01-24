@@ -21,13 +21,13 @@ import {UserAuthMeta} from "./api.service";
 
 interface Fields extends CommonFields {
   id: number;
-  fishType: FishType;
-  fishAge: FishAge;
-  amount?: number;
+  fishType: FishType['id'];
+  fishAge: FishAge['id'];
+  fishStocking: FishStocking['id'];
+  amount: number;
   weight?: number;
   reviewAmount?: number;
   reviewWeight?: number;
-  fishStocking?: number;
 }
 
 interface Populates extends CommonPopulates {

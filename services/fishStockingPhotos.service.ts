@@ -20,7 +20,7 @@ import { FishStocking } from './fishStockings.service';
 interface Fields extends CommonFields {
   id: number;
   name: string;
-  fishStocking: number;
+  fishStocking: FishStocking['id'];
 }
 
 interface Populates extends CommonPopulates {
