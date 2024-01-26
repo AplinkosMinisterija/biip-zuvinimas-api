@@ -5,9 +5,8 @@ import { Action, Service } from 'moleculer-decorators';
 
 import PostgisMixin from 'moleculer-postgis';
 import DbConnection from '../mixins/database.mixin';
-import { RestrictionType, Table } from '../types';
+import {FishStockingStatus, RestrictionType, Table} from '../types';
 import { FishAge } from './fishAges.service';
-import { FishStockingStatus } from './fishStockings.service';
 import { FishType } from './fishTypes.service';
 
 interface Fields {
@@ -38,6 +37,7 @@ export type PublishingFishStocking<
   F extends keyof (Fields & Populates) = keyof Fields,
 > = Table<Fields, Populates, P, F>;
 
+//TODO: might be unnecessary if fishBatches refactored
 @Service({
   name: 'publishing.fishStockings',
   mixins: [
@@ -64,12 +64,10 @@ export type PublishingFishStocking<
         primaryKey: true,
         secure: true,
       },
-
       eventTime: {
         type: 'date',
         columnType: 'datetime',
       },
-
       geom: {
         type: 'any',
         geom: {

@@ -56,13 +56,15 @@ export type Setting<
     scopes: {
       ...COMMON_SCOPES,
     },
-    actions: {
-      find: {
-        auth: RestrictionType.DEFAULT,
-      },
-      get: { auth: RestrictionType.DEFAULT },
-    },
     defaultScopes: [...COMMON_DEFAULT_SCOPES],
+  },
+  actions: {
+    find: {
+      auth: RestrictionType.DEFAULT,
+    },
+    get: {
+      auth: RestrictionType.DEFAULT
+    },
   },
 })
 export default class SettingsService extends moleculer.Service {

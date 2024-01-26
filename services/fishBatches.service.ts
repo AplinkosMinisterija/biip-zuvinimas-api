@@ -1,7 +1,7 @@
 'use strict';
 
 import moleculer, { Context } from 'moleculer';
-import { Action, Service } from 'moleculer-decorators';
+import {Action, Method, Service} from 'moleculer-decorators';
 
 import { filter, map } from 'lodash';
 import DbConnection from '../mixins/database.mixin';
@@ -16,16 +16,18 @@ import {
 import { FishAge } from './fishAges.service';
 import { FishStocking } from './fishStockings.service';
 import { FishType } from './fishTypes.service';
+import {UserAuthMeta} from "./api.service";
+
 
 interface Fields extends CommonFields {
   id: number;
   fishType: FishType;
   fishAge: FishAge;
+  fishStocking: FishStocking['id'];
   amount: number;
-  weight: number;
-  reviewAmount: number;
-  reviewWeight: number;
-  fishStocking: number;
+  weight?: number;
+  reviewAmount?: number;
+  reviewWeight?: number;
 }
 
 interface Populates extends CommonPopulates {
@@ -93,19 +95,22 @@ export type FishBatch<
   },
 })
 export default class FishBatchesService extends moleculer.Service {
-  // TODO: remove after old data migrate
-  @Action()
-  createPermissive(ctx: Context) {
-    return this.createEntity(ctx, ctx.params, {
-      permissive: true,
-    });
-  }
 
-  //TODO: different batches validation during registration, review and when editing trough admin
   @Action({
     params: {
-      batches: 'array',
-      fishStocking: 'number',
+      batches: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            fishType: 'number|integer|positive',
+            fishAge: 'number|integer|positive',
+            amount: 'number|integer|positive',
+            weight: 'number|positive|optional',
+          }
+        }
+      },
+      fishStocking: 'number|integer|positive',
     },
   })
   async createBatches(
@@ -114,54 +119,121 @@ export default class FishBatchesService extends moleculer.Service {
       fishStocking: number;
     }>,
   ) {
-    const promises = ctx.params.batches?.map((batch: any) => {
-      return ctx.call('fishBatches.create', {
-        ...batch,
-        fishStocking: ctx.params.fishStocking,
-      });
-    });
-    await Promise.all(promises);
+    if (ctx.params.batches) {
+      const batches = ctx.params.batches?.map((batch) => ({
+          fishType: batch.fishType,
+          fishAge: batch.fishAge,
+          amount: batch.amount,
+          weight: batch.weight,
+          fishStocking: ctx.params.fishStocking,
+        })
+      )
+      await ctx.call('fishBatches.createMany', batches);
+    }
   }
 
-  //TODO: different batches validation during registration, review and when editing trough admin
   @Action({
     params: {
-      batches: 'array|optional',
-      fishStocking: 'number|optional',
+      batches: {
+        type: 'array',
+        required: false,
+        items: {
+          type: 'object',
+          properties: {
+            id: 'number|integer|positive|optional',
+            fishType: 'number|integer|positive',
+            fishAge: 'number|integer|positive',
+            amount: 'number|integer|positive',
+            weight: 'number|optional',
+            reviewAmount: 'number|integer|positive|optional',
+            reviewWeight: 'number|optional',
+          }
+        }
+      },
+      fishStocking: 'number|integer|positive',
     },
   })
+  //for admin
   async updateBatches(
     ctx: Context<{
       batches: FishBatch[];
       fishStocking: number;
-    }>,
+    }, UserAuthMeta>,
   ) {
-    const batches = ctx.params.batches || [];
-    const existingBatches = await this.findEntities(ctx, {
-      query: { fishStockingId: ctx.params.fishStocking },
-    });
 
-    const deleteBatches = filter(
-      existingBatches,
-      (item: FishBatch) => !batches.some((b) => b.id === item.id),
-    );
-    const promises = map(deleteBatches, (batch: FishBatch) => this.removeEntity(ctx, batch));
-    await Promise.all(promises);
-
-    const updateOrCreatePromises = map(batches, (batch: FishBatch) => {
-      if (batch.id) {
-        return this.updateEntity(ctx, batch);
-      }
-      return this.createEntity(ctx, {
-        ...batch,
+    await this.deleteExistingBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
+    await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
+    return await this.findEntities(ctx, {
+      query: {
         fishStocking: ctx.params.fishStocking,
-      });
+      },
     });
-    await Promise.all(updateOrCreatePromises);
+  }
+
+  @Action({
+    params: {
+      batches: {
+        type: 'array',
+        required: false,
+        items: {
+          type: 'object',
+          properties: {
+            id: 'number|integer|positive|optional',
+            fishType: 'number|integer|positive|optional',
+            fishAge: 'number|integer|positive|optional',
+            amount: 'number|integer|positive',
+            weight: 'number|optional'
+          }
+        }
+      },
+      fishStocking: 'number|integer|positive',
+    },
+  })
+  async updateRegisteredBatches(
+      ctx: Context<{
+        batches: FishBatch[];
+        fishStocking: number;
+      }, UserAuthMeta>,
+  ) {
+
+    await this.deleteExistingBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
+    await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
 
     return await this.findEntities(ctx, {
       query: {
-        fishStocking: ctx.params.fishStocking || 1,
+        fishStocking: ctx.params.fishStocking,
+      },
+    });
+  }
+
+  @Action({
+    params: {
+      batches: {
+        type: 'array',
+        required: false,
+        items: {
+          type: 'object',
+          properties: {
+            id: 'number|integer|positive',
+            reviewAmount: 'number|integer|positive',
+            reviewWeight: 'number|optional'
+          }
+        }
+      },
+      fishStocking: 'number|integer|positive',
+    },
+  })
+  async reviewBatches(
+      ctx: Context<{
+        batches: FishBatch[];
+        fishStocking: number;
+      }, UserAuthMeta>,
+  ) {
+    await this.deleteExistingBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
+    await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
+    return await this.findEntities(ctx, {
+      query: {
+        fishStocking: ctx.params.fishStocking,
       },
     });
   }
@@ -169,5 +241,32 @@ export default class FishBatchesService extends moleculer.Service {
   @Action()
   async getAll(ctx: Context) {
     return this.findEntities(ctx, ctx.params);
+  }
+
+  @Method
+  async deleteExistingBatches(ctx: Context, fishStockingId: number, batches: FishBatch[]) {
+    const existingBatches: FishBatch[] = await this.findEntities(ctx, {
+      query: { fishStocking: fishStockingId },
+    });
+    const deleteBatches = filter(
+        existingBatches,
+        (existingBatch: FishBatch) => batches?.find((batch) =>  batch.id && existingBatch.id == batch.id)
+    );
+    const promises = map(deleteBatches, (batch: FishBatch) => this.removeEntity(ctx, batch));
+    await Promise.all(promises);
+  }
+
+  @Method
+  async createOrUpdateBatches(ctx: Context, fishStocking: number, batches: any[]) {
+    const promises = batches?.map( (batch: FishBatch) => {
+      if (batch.id) {
+        return this.updateEntity(ctx, batch);
+      }
+      return this.createEntity(ctx, {
+        ...batch,
+        fishStocking,
+      });
+    });
+    await Promise.all(promises);
   }
 }
