@@ -2,7 +2,7 @@
 
 import moleculer, { Context } from 'moleculer';
 import { Action, Service } from 'moleculer-decorators';
-import { coordinatesToGeometry } from '../modules/geometry';
+import {coordinatesToGeometry, geomToFeatureCollection} from '../modules/geometry';
 import {
   COMMON_PAGINATION_PARAMS,
   RestrictionType,
@@ -38,7 +38,7 @@ export default class LocationsService extends moleculer.Service {
     const { geom, search, withGeom, ...options } = ctx.params;
     let url = '';
     if (geom) {
-      url = `${process.env.INTERNAL_API}/uetk/objects?query[geom]=${geom}${serializeQuery(
+      url = `${process.env.INTERNAL_API}/uetk/objects?query[geom]=${geom}&${serializeQuery(
           options
       )}`;
     } else if (search) {
@@ -53,14 +53,11 @@ export default class LocationsService extends moleculer.Service {
     const data = await response.json();
     return {
     ...data,
-    rows: data.rows.map((item: any) => ({
+    rows: data?.rows?.map((item: any) => ({
       cadastral_id: item.properties?.cadastral_id,
       name: item.properties?.name,
       municipality: item.properties?.municipality,
-      ...(!!withGeom && { geom : coordinatesToGeometry({
-          x: item.properties.lon,
-          y: item.properties.lat,
-        })}),
+      ...(!!withGeom && { geom : geomToFeatureCollection(item.properties?.geom)}),
     }))}
   }
 
