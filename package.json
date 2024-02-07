@@ -80,7 +80,7 @@
     "nats": "^2.13.1",
     "objection": "^3.0.1",
     "pg": "^8.10.0",
-    "postmark": "^3.0.18",
+    "postmark": "^4.0.2",
     "transform-coordinates": "^1.0.0",
     "xlsx": "^0.18.5"
   },
