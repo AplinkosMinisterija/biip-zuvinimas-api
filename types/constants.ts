@@ -2,6 +2,24 @@ import Moleculer, { Errors } from 'moleculer';
 import { User } from '../services/users.service';
 import { FieldHookCallback } from './';
 
+export const COMMON_PAGINATION_PARAMS = {
+  pageSize: {
+    type: 'number',
+    convert: true,
+    integer: true,
+    optional: true,
+    default: 10,
+    min: 1,
+  },
+  page: {
+    type: 'number',
+    convert: true,
+    integer: true,
+    min: 1,
+    optional: true,
+    default: 1,
+  }
+};
 export enum RestrictionType {
   // DEFAULT = USER or ADMIN
   DEFAULT = 'DEFAULT',

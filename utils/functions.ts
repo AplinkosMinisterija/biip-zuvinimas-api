@@ -195,5 +195,29 @@ export const getStatus = (ctx: Context, fishStocking: FishStocking, batches: Fis
   return null;
 }
 
+export function serializeQuery(obj: any) {
+  var str = [];
+
+  for (const p in obj) {
+    if (obj.hasOwnProperty(p)) {
+      function convertValue(value: any) {
+        if (Array.isArray(value)) {
+          value = `[${value.map((i) => convertValue(i)).join(",")}]`;
+        } else if (typeof value === "object" && !Array.isArray(value)) {
+          value = JSON.stringify(value);
+        }
+
+        return value;
+      }
+
+      str.push(
+          encodeURIComponent(p) + "=" + encodeURIComponent(convertValue(obj[p]))
+      );
+    }
+  }
+  const result = str.join("&");
+  return result.length > 0 ? result : "";
+}
+
 
 

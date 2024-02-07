@@ -1,7 +1,13 @@
 'use strict';
 
 import { Action, Event, Method, Service } from 'moleculer-decorators';
-import { GeomFeatureCollection, coordinatesToGeometry, geometryToGeom } from '../modules/geometry';
+import {
+  GeomFeatureCollection,
+  coordinatesToGeometry,
+  geometryToGeom,
+  wgsToLks,
+  Coordinates
+} from '../modules/geometry';
 import {
   COMMON_DEFAULT_SCOPES,
   COMMON_FIELDS,
@@ -1181,8 +1187,8 @@ export default class FishStockingsService extends moleculer.Service {
       ctx.params.reviewLocation = null;
       return ctx;
     }
-
-    const reviewLocationGeom: any = coordinatesToGeometry(reviewLocation);
+    const lks = wgsToLks(reviewLocation);
+    const reviewLocationGeom = coordinatesToGeometry(lks);
     if (reviewLocationGeom?.features?.length) {
       const adapter = await this.getAdapter(ctx);
       const table = adapter.getTable();
