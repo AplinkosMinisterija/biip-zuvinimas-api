@@ -38,11 +38,11 @@ export default class LocationsService extends moleculer.Service {
     const { geom, search, withGeom, ...options } = ctx.params;
     let url = '';
     if (geom) {
-      url = `${process.env.INTERNAL_API}/uetk/search?query[geom]=${geom}${serializeQuery(
+      url = `${process.env.INTERNAL_API}/uetk/objects?query[geom]=${geom}${serializeQuery(
           options
       )}`;
     } else if (search) {
-      url = `${process.env.INTERNAL_API}/uetk/search?search=${search}&searchFields[]=name&searchFields[]=cadastral_id${serializeQuery(
+      url = `${process.env.INTERNAL_API}/uetk/objects?search=${search}&searchFields[]=name&searchFields[]=cadastral_id${serializeQuery(
           options
       )}`;
     }
