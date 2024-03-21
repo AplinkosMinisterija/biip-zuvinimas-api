@@ -14,4 +14,5 @@ const config = {
   ...knexSnakeCaseMappers(),
 };
 
+export default config;
 module.exports = config;

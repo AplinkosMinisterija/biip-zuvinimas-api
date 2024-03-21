@@ -6,6 +6,9 @@ import ApiGateway from 'moleculer-web';
 import { RequestMessage, RestrictionType, throwNoRightsError } from '../types';
 import { FREELANCER_PROFILE_ID } from './tenantUsers.service';
 import { User } from './users.service';
+import Ping from '../mixins/ping.mixin';
+
+import dbConfig from "../knexfile";
 
 export interface UserAuthMeta {
   user: User;
@@ -23,7 +26,10 @@ export enum AuthUserRole {
 
 @Service({
   name: 'api',
-  mixins: [ApiGateway],
+  mixins: [
+    ApiGateway,
+    Ping({dbConfig})
+  ],
   // More info about settings: https://moleculer.services/docs/0.14/moleculer-web.html
   // TODO: helmet
   settings: {
@@ -217,7 +223,10 @@ export default class ApiService extends moleculer.Service {
   }
 
   @Action()
-  ping() {
+  async ping(ctx: Context) {
+    await this.pingDb();
+    await this.pingRedis();
+    await this.pingMinio(ctx);
     return {
       timestamp: Date.now(),
     };
