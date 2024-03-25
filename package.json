@@ -1,6 +1,6 @@
 {
   "name": "biip-zuvinimas-api",
-  "version": "1.0.9",
+  "version": "1.0.8",
   "description": "My Moleculer-based microservices project",
   "private": true,
   "prettier": "@aplinkosministerija/biip-prettier-config",
