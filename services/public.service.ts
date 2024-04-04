@@ -1,17 +1,11 @@
 'use strict';
 
+import { endOfYear, startOfYear } from 'date-fns/fp';
 import moleculer, { Context, RestSchema } from 'moleculer';
 import { Action, Service } from 'moleculer-decorators';
-import { CommonFields, CommonPopulates, RestrictionType, Table } from '../types';
-
-import { endOfYear, startOfYear } from 'date-fns/fp';
-import { GeomFeature } from '../modules/geometry';
-import { FishBatch } from './fishBatches.service';
-import { FishStockingPhoto } from './fishStockingPhotos.service';
+import { RestrictionType } from '../types';
 import { FishStocking } from './fishStockings.service';
 import { CompletedFishBatch, FishStockingsCompleted } from './fishStockingsCompleted.service';
-import { Tenant } from './tenants.service';
-import { User } from './users.service';
 
 type StatsByFishTypeId = {
   [fishTypeId: string]: {
@@ -32,48 +26,6 @@ type Statistics = {
   [cadastralId: string]: StatsByCadastralId;
 };
 
-interface Fields extends CommonFields {
-  id: number;
-  eventTime: Date;
-  comment?: string;
-  tenant?: Tenant['id'];
-  stockingCustomer?: Tenant['id'];
-  fishOrigin: string;
-  fishOriginCompanyName?: string;
-  fishOriginReservoir?: {
-    id: string;
-    name: string;
-    municipality: { id: string; label: string };
-  };
-  location: GeomFeature;
-  geom: any;
-  batches: Array<FishBatch['id']>;
-  assignedTo: User['id'];
-  phone: string;
-  reviewedBy?: User['id'];
-  reviewLocation?: { lat: number; lng: number };
-  reviewTime?: Date;
-  waybillNo?: string;
-  veterinaryApprovalNo?: string;
-  veterinaryApprovalOrderNo?: string;
-  containerWaterTemp?: number;
-  waterTemp?: number;
-  images?: FishStockingPhoto['id'];
-  signatures?: {
-    organization: string;
-    signedBy: string;
-    signature: string;
-  }[];
-  assignedToInspector?: number;
-}
-
-interface Populates extends CommonPopulates {}
-
-export type FishAge<
-  P extends keyof Populates = never,
-  F extends keyof (Fields & Populates) = keyof Fields,
-> = Table<Fields, Populates, P, F>;
-
 @Service({
   name: 'public',
 })
@@ -82,7 +34,6 @@ export default class FishAgesService extends moleculer.Service {
     rest: 'GET /fishStockings',
     auth: RestrictionType.PUBLIC,
   })
-  //TODO: could be moved to fishStockings service
   async getPublicFishStockings(ctx: Context<any>) {
     const params = {
       ...ctx.params,
@@ -105,7 +56,6 @@ export default class FishAgesService extends moleculer.Service {
     rest: 'GET /statistics',
     auth: RestrictionType.PUBLIC,
   })
-  //TODO: could be moved to fishStockings service
   async getStatistics(ctx: Context<any>) {
     const completedFishStockings: FishStocking[] = await ctx.call('fishStockings.count', {
       filter: {
