@@ -53,5 +53,5 @@ exports.up = function (knex) {
 };
 
 exports.down = function (knex) {
-  return knex.schema.dropViewIfExists('fish_stockings_completed');
+  return knex.schema.dropViewIfExists('fishStockingsCompleted');
 };
