@@ -1,5 +1,5 @@
 exports.up = function (knex) {
-  return knex.schema.createViewOrReplace('fish_stockings_completed', function (view) {
+  return knex.schema.createViewOrReplace('fishStockingsCompleted', function (view) {
     view.as(
       knex.raw(`
           WITH fb AS (
