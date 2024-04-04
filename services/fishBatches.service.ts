@@ -1,7 +1,7 @@
 'use strict';
 
 import moleculer, { Context } from 'moleculer';
-import {Action, Method, Service} from 'moleculer-decorators';
+import { Action, Method, Service } from 'moleculer-decorators';
 
 import { filter, map } from 'lodash';
 import DbConnection from '../mixins/database.mixin';
@@ -13,11 +13,10 @@ import {
   CommonPopulates,
   Table,
 } from '../types';
+import { UserAuthMeta } from './api.service';
 import { FishAge } from './fishAges.service';
 import { FishStocking } from './fishStockings.service';
 import { FishType } from './fishTypes.service';
-import {UserAuthMeta} from "./api.service";
-
 
 interface Fields extends CommonFields {
   id: number;
@@ -95,7 +94,6 @@ export type FishBatch<
   },
 })
 export default class FishBatchesService extends moleculer.Service {
-
   @Action({
     params: {
       batches: {
@@ -107,8 +105,8 @@ export default class FishBatchesService extends moleculer.Service {
             fishAge: 'number|integer|positive',
             amount: 'number|integer|positive',
             weight: 'number|positive|optional',
-          }
-        }
+          },
+        },
       },
       fishStocking: 'number|integer|positive',
     },
@@ -121,13 +119,12 @@ export default class FishBatchesService extends moleculer.Service {
   ) {
     if (ctx.params.batches) {
       const batches = ctx.params.batches?.map((batch) => ({
-          fishType: batch.fishType,
-          fishAge: batch.fishAge,
-          amount: batch.amount,
-          weight: batch.weight,
-          fishStocking: ctx.params.fishStocking,
-        })
-      )
+        fishType: batch.fishType,
+        fishAge: batch.fishAge,
+        amount: batch.amount,
+        weight: batch.weight,
+        fishStocking: ctx.params.fishStocking,
+      }));
       await ctx.call('fishBatches.createMany', batches);
     }
   }
@@ -147,20 +144,22 @@ export default class FishBatchesService extends moleculer.Service {
             weight: 'number|optional',
             reviewAmount: 'number|integer|positive|optional',
             reviewWeight: 'number|optional',
-          }
-        }
+          },
+        },
       },
       fishStocking: 'number|integer|positive',
     },
   })
   //for admin
   async updateBatches(
-    ctx: Context<{
-      batches: FishBatch[];
-      fishStocking: number;
-    }, UserAuthMeta>,
+    ctx: Context<
+      {
+        batches: FishBatch[];
+        fishStocking: number;
+      },
+      UserAuthMeta
+    >,
   ) {
-
     await this.deleteExistingBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
     await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
     return await this.findEntities(ctx, {
@@ -182,20 +181,22 @@ export default class FishBatchesService extends moleculer.Service {
             fishType: 'number|integer|positive|optional',
             fishAge: 'number|integer|positive|optional',
             amount: 'number|integer|positive',
-            weight: 'number|optional'
-          }
-        }
+            weight: 'number|optional',
+          },
+        },
       },
       fishStocking: 'number|integer|positive',
     },
   })
   async updateRegisteredBatches(
-      ctx: Context<{
+    ctx: Context<
+      {
         batches: FishBatch[];
         fishStocking: number;
-      }, UserAuthMeta>,
+      },
+      UserAuthMeta
+    >,
   ) {
-
     await this.deleteExistingBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
     await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
 
@@ -216,18 +217,21 @@ export default class FishBatchesService extends moleculer.Service {
           properties: {
             id: 'number|integer|positive',
             reviewAmount: 'number|integer|positive',
-            reviewWeight: 'number|optional'
-          }
-        }
+            reviewWeight: 'number|optional',
+          },
+        },
       },
       fishStocking: 'number|integer|positive',
     },
   })
   async reviewBatches(
-      ctx: Context<{
+    ctx: Context<
+      {
         batches: FishBatch[];
         fishStocking: number;
-      }, UserAuthMeta>,
+      },
+      UserAuthMeta
+    >,
   ) {
     await this.deleteExistingBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
     await this.createOrUpdateBatches(ctx, ctx.params.fishStocking, ctx.params.batches);
@@ -249,8 +253,9 @@ export default class FishBatchesService extends moleculer.Service {
       query: { fishStocking: fishStockingId },
     });
     const deleteBatches = filter(
-        existingBatches,
-        (existingBatch: FishBatch) => batches?.find((batch) =>  batch.id && existingBatch.id == batch.id)
+      existingBatches,
+      (existingBatch: FishBatch) =>
+        !batches?.find((batch) => batch.id && existingBatch.id == batch.id),
     );
     const promises = map(deleteBatches, (batch: FishBatch) => this.removeEntity(ctx, batch));
     await Promise.all(promises);
@@ -258,7 +263,7 @@ export default class FishBatchesService extends moleculer.Service {
 
   @Method
   async createOrUpdateBatches(ctx: Context, fishStocking: number, batches: any[]) {
-    const promises = batches?.map( (batch: FishBatch) => {
+    const promises = batches?.map((batch: FishBatch) => {
       if (batch.id) {
         return this.updateEntity(ctx, batch);
       }
