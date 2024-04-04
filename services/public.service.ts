@@ -9,41 +9,9 @@ import { GeomFeature } from '../modules/geometry';
 import { FishBatch } from './fishBatches.service';
 import { FishStockingPhoto } from './fishStockingPhotos.service';
 import { FishStocking } from './fishStockings.service';
-import { FishStockingsCompleted } from './fishStockingsCompleted.service';
+import { CompletedFishBatch, FishStockingsCompleted } from './fishStockingsCompleted.service';
 import { Tenant } from './tenants.service';
 import { User } from './users.service';
-
-interface KeyValue {
-  [key: string]: any;
-}
-
-type FishBatchesStats = {
-  [cadastralId: string]: {
-    count: number;
-    cadastralId: string;
-    [key: string]:
-      | any
-      | {
-          count: number;
-          fishType: { id: number; label: string };
-        };
-  };
-};
-
-type StatsByCadastralIdAndFish = {
-  [cadastralId: string]: {
-    count: number;
-    byFish: {
-      [fishId: string]: {
-        count: number;
-        fishType: {
-          id: number;
-          label: string;
-        };
-      };
-    };
-  };
-};
 
 interface Fields extends CommonFields {
   id: number;
@@ -167,118 +135,13 @@ export default class FishAgesService extends moleculer.Service {
     ctx: Context<{ date: any; fishType: number; year: number; cadastralId: string }>,
   ) {
     const { fishType, date, year, cadastralId } = ctx.params;
-    const query: any = { reviewAmount: { $exists: true } };
+    const query: any = {};
 
     if (fishType) {
-      query.fishType = fishType;
-    }
-
-    if (date) {
-      query.createdAt = date;
-      try {
-        query.createdAt = JSON.parse(date);
-      } catch (err) {}
-    }
-
-    // if (cadastralId) {
-    //   query.$raw = {
-    //     condition: `?? @> ?::jsonb`,
-    //     bindings: ['location', { cadastral_id: [cadastralId] }],
-    //   };
-    // }
-
-    if (year) {
-      console.log('year!!!', year);
-      const yearDate = new Date(year);
-      const startTime = startOfYear(yearDate);
-      const endTime = endOfYear(yearDate);
-      query.createdAt = {
-        $gte: startTime.toDateString(),
-        $lt: endTime.toDateString(),
-      };
+      const condition = `fish_batches::jsonb @> '[{"fish_type": {"id": ${fishType} }}]'`;
       query.$raw = {
-        condition: ``,
+        condition,
       };
-    }
-
-    const fishBatches: FishBatch<'fishStocking' | 'fishType'>[] = await ctx.call(
-      'fishBatches.find',
-      {
-        query,
-        populate: ['fishStocking', 'fishType'],
-      },
-    );
-
-    const stats = fishBatches.reduce((groupedFishBatch, fishBatch) => {
-      const cadastralId = fishBatch?.fishStocking?.location?.cadastral_id;
-      const fishTypeId = fishBatch?.fishType?.id;
-
-      if (!cadastralId) return groupedFishBatch;
-
-      groupedFishBatch[cadastralId] = groupedFishBatch[cadastralId] || {
-        count: 0,
-        cadastralId: cadastralId,
-      };
-
-      groupedFishBatch[cadastralId].count += fishBatch.reviewAmount;
-
-      groupedFishBatch[cadastralId][fishTypeId] = groupedFishBatch[cadastralId][fishTypeId] || {
-        count: 0,
-        fishType: { id: fishTypeId, label: fishBatch?.fishType?.label },
-      };
-
-      groupedFishBatch[cadastralId][fishTypeId].count += fishBatch.reviewAmount;
-
-      return groupedFishBatch;
-    }, {} as FishBatchesStats);
-
-    return Object.values(stats).reduce(
-      (groupedFishBatch: KeyValue, currentGroupedFishBatch: KeyValue) => {
-        const { cadastralId, count, ...rest } = currentGroupedFishBatch;
-        groupedFishBatch[cadastralId] = {
-          count,
-          byFishes: Object.values(rest),
-        };
-        return groupedFishBatch;
-      },
-      {} as StatsByCadastralIdAndFish,
-    );
-  }
-
-  @Action({
-    rest: <RestSchema>{
-      method: 'GET',
-      path: '/uetk/statistics2',
-    },
-    params: {
-      date: [
-        {
-          type: 'string',
-          optional: true,
-        },
-        {
-          type: 'object',
-          optional: true,
-        },
-      ],
-      fishType: {
-        type: 'number',
-        convert: true,
-        optional: true,
-      },
-      year: 'number|convert|optional',
-      cadastralId: 'string|optional',
-    },
-    auth: RestrictionType.PUBLIC,
-  })
-  async getStatisticsForUETK2(
-    ctx: Context<{ date: any; fishType: number; year: number; cadastralId: string }>,
-  ) {
-    const { fishType, date, year, cadastralId } = ctx.params;
-    const query: any = { review_time: { $exists: true } };
-
-    if (fishType) {
-      query.fishType = fishType;
     }
 
     if (date) {
@@ -289,9 +152,12 @@ export default class FishAgesService extends moleculer.Service {
     }
 
     if (cadastralId) {
+      let condition = `location::jsonb @> '{"cadastral_id": "${cadastralId}"}'`;
+      if (query.$raw?.condition) {
+        condition = query.$raw?.condition + ' AND ' + condition;
+      }
       query.$raw = {
-        condition: `?? @> ?::jsonb`,
-        bindings: ['location', { cadastral_id: [cadastralId] }],
+        condition,
       };
     }
 
@@ -299,7 +165,6 @@ export default class FishAgesService extends moleculer.Service {
       const yearDate = new Date().setFullYear(year);
       const startTime = startOfYear(yearDate);
       const endTime = endOfYear(yearDate);
-      console.log('year', yearDate, startTime, endTime);
       query.reviewTime = {
         $gte: startTime.toDateString(),
         $lt: endTime.toDateString(),
@@ -313,6 +178,65 @@ export default class FishAgesService extends moleculer.Service {
       },
     );
 
-    return completedFishStockings;
+    const selectedBatches: Array<CompletedFishBatch & { cadastralId: string }> =
+      completedFishStockings
+        ?.map((stocking) =>
+          stocking.fishBatches?.map((batch) => ({
+            ...batch,
+            cadastralId: stocking.location.cadastral_id,
+          })),
+        )
+        ?.flat();
+
+    const batchesByCadastralId = selectedBatches.reduce((aggregate, value) => {
+      const { cadastralId } = value;
+      if (aggregate[cadastralId]) {
+        aggregate[cadastralId] = [...aggregate[cadastralId], value];
+      } else {
+        aggregate[cadastralId] = [value];
+      }
+      return aggregate;
+    }, {} as { [cadastralId: string]: Array<CompletedFishBatch & { cadastralId: string }> });
+
+    const statistics: {
+      [cadastralId: string]: {
+        count: number;
+        byFish: {
+          [fishId: string]: {
+            count: number;
+            fishType: {
+              id: number;
+              label: string;
+            };
+          };
+        };
+      };
+    } = {};
+
+    for (const cadastralId in batchesByCadastralId) {
+      const batches = batchesByCadastralId[cadastralId];
+      const data = batches.reduce(
+        (aggregate, value) => {
+          aggregate.count += value.count;
+          let fishTypeData = aggregate.byFish?.[value.fish_type.id];
+          if (fishTypeData) {
+            fishTypeData.count += value.count;
+          } else {
+            fishTypeData = { count: value.count, fishType: value.fish_type };
+          }
+          aggregate.byFish[value.fish_type.id] = fishTypeData;
+          return aggregate;
+        },
+        { count: 0, byFish: {} } as {
+          count: number;
+          byFish: {
+            [fishTypeId: string]: { count: number; fishType: { id: number; label: string } };
+          };
+        },
+      );
+      statistics[cadastralId] = data;
+    }
+
+    return statistics;
   }
 }

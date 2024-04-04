@@ -12,9 +12,9 @@ exports.up = function (knex) {
                   'fish_age',
                   json_build_object('id', fa.id, 'label', fa.label),
                   'count',
-                  fb.amount,
+                  fb.review_amount,
                   'weight',
-                  fb.weight
+                  fb.review_weight
                 )
               ) AS fish_batches
             FROM

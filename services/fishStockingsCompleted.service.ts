@@ -7,6 +7,12 @@ import DbConnection from '../mixins/database.mixin';
 import { FishAge } from './fishAges.service';
 import { FishType } from './fishTypes.service';
 
+export interface CompletedFishBatch {
+  fish_type: FishType<never, 'id' | 'label'>;
+  fish_age: FishAge<never, 'id' | 'label'>;
+  count: number;
+  weight: number;
+}
 export interface FishStockingsCompleted {
   id: number;
   eventTime: Date;
@@ -26,7 +32,7 @@ export interface FishStockingsCompleted {
     fish_age: FishAge<never, 'id' | 'label'>;
     count: number;
     weight: number;
-  };
+  }[];
 }
 
 //TODO: might be unnecessary if fishBatches refactored
@@ -56,7 +62,11 @@ export interface FishStockingsCompleted {
         primaryKey: true,
         secure: true,
       },
-      date: {
+      eventTime: {
+        type: 'date',
+        columnType: 'datetime',
+      },
+      reviewTime: {
         type: 'date',
         columnType: 'datetime',
       },
@@ -70,7 +80,7 @@ export interface FishStockingsCompleted {
         type: 'object',
         columnType: 'json',
       },
-      fishes: {
+      fishBatches: {
         type: 'array',
         columnType: 'json',
         items: { type: 'object' },
