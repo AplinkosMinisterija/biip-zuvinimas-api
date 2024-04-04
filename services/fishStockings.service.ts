@@ -939,6 +939,8 @@ export default class FishStockingsService extends moleculer.Service {
       reviewTime: new Date(),
     });
 
+    await this.broker.cacher.clean('public.**');
+
     return this.resolveEntities(ctx, {
       id: ctx.params.id,
       populate: ['batches', 'images'],
