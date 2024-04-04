@@ -13,6 +13,25 @@ import { CompletedFishBatch, FishStockingsCompleted } from './fishStockingsCompl
 import { Tenant } from './tenants.service';
 import { User } from './users.service';
 
+type StatsByFishTypeId = {
+  [fishTypeId: string]: {
+    count: number;
+    fishType: {
+      id: number;
+      label: string;
+    };
+  };
+};
+
+type StatsByCadastralId = {
+  count: number;
+  byFish: StatsByFishTypeId;
+};
+
+type Statistics = {
+  [cadastralId: string]: StatsByCadastralId;
+};
+
 interface Fields extends CommonFields {
   id: number;
   eventTime: Date;
@@ -198,27 +217,14 @@ export default class FishAgesService extends moleculer.Service {
       return aggregate;
     }, {} as { [cadastralId: string]: Array<CompletedFishBatch & { cadastralId: string }> });
 
-    const statistics: {
-      [cadastralId: string]: {
-        count: number;
-        byFish: {
-          [fishId: string]: {
-            count: number;
-            fishType: {
-              id: number;
-              label: string;
-            };
-          };
-        };
-      };
-    } = {};
+    const statistics: Statistics = {};
 
     for (const cadastralId in batchesByCadastralId) {
       const batches = batchesByCadastralId[cadastralId];
       const data = batches.reduce(
         (aggregate, value) => {
           aggregate.count += value.count;
-          let fishTypeData = aggregate.byFish?.[value.fish_type.id];
+          let fishTypeData = aggregate.byFish[value.fish_type.id];
           if (fishTypeData) {
             fishTypeData.count += value.count;
           } else {
@@ -227,12 +233,7 @@ export default class FishAgesService extends moleculer.Service {
           aggregate.byFish[value.fish_type.id] = fishTypeData;
           return aggregate;
         },
-        { count: 0, byFish: {} } as {
-          count: number;
-          byFish: {
-            [fishTypeId: string]: { count: number; fishType: { id: number; label: string } };
-          };
-        },
+        { count: 0, byFish: {} } as StatsByCadastralId,
       );
       statistics[cadastralId] = data;
     }
