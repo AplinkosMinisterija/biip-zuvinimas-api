@@ -89,4 +89,4 @@ export interface FishStockingsCompleted {
     defaultPopulates: ['geom'],
   },
 })
-export default class PublishingFishStockingsService extends moleculer.Service {}
+export default class FishStockingsCompletedService extends moleculer.Service {}
