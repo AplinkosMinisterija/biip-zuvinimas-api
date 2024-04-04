@@ -208,12 +208,7 @@ export default class FishAgesService extends moleculer.Service {
         ?.flat();
 
     const batchesByCadastralId = selectedBatches.reduce((aggregate, value) => {
-      const { cadastralId } = value;
-      if (aggregate[cadastralId]) {
-        aggregate[cadastralId] = [...aggregate[cadastralId], value];
-      } else {
-        aggregate[cadastralId] = [value];
-      }
+      aggregate[value.cadastralId] = [...(aggregate[value.cadastralId] || []), value];
       return aggregate;
     }, {} as { [cadastralId: string]: Array<CompletedFishBatch & { cadastralId: string }> });
 
