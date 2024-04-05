@@ -417,6 +417,11 @@ export type FishStocking<
       all: ['beforeSelect', 'handleSort'],
       export: ['beforeSelect', 'handleSort'],
     },
+    after: {
+      review: ['handleCache'],
+      updateFishStocking: ['handleCache'],
+      remove: ['handleCache'],
+    },
   },
   actions: {
     remove: {
@@ -589,7 +594,8 @@ export default class FishStockingsService extends moleculer.Service {
       }
       return fishStocking;
     }
-    return this.updateEntity(ctx);
+
+    return await this.updateEntity(ctx);
   }
 
   @Action({
@@ -938,8 +944,6 @@ export default class FishStockingsService extends moleculer.Service {
       reviewedBy: ctx.meta.user.id,
       reviewTime: new Date(),
     });
-
-    await this.broker.cacher.clean('public.**');
 
     return this.resolveEntities(ctx, {
       id: ctx.params.id,
@@ -1331,5 +1335,10 @@ export default class FishStockingsService extends moleculer.Service {
         },
       );
     }
+  }
+
+  @Method
+  async handleCache() {
+    await this.broker.cacher.clean('public.**');
   }
 }
