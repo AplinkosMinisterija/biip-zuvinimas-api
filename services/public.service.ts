@@ -103,6 +103,9 @@ export default class FishAgesService extends moleculer.Service {
   @Action({
     rest: 'GET /fishStockings',
     auth: RestrictionType.PUBLIC,
+    cache: {
+      ttl: 24 * 60 * 60,
+    },
   })
   async getPublicFishStockings(ctx: Context<any>) {
     const params = {
@@ -110,6 +113,7 @@ export default class FishAgesService extends moleculer.Service {
       fields: [
         'id',
         'eventTime',
+        'reviewTime',
         'location',
         'coordinates',
         'status',
@@ -119,12 +123,26 @@ export default class FishAgesService extends moleculer.Service {
       ],
       populate: ['location', 'coordinates', 'status', 'batches'],
     };
-    return ctx.call('fishStockings.find', params);
+
+    const fishStockings: FishStocking[] = await ctx.call('fishStockings.find', params);
+    const data = fishStockings?.map((f) => {
+      const item = {
+        ...f,
+        id: f.id,
+        eventTime: f.reviewTime || f.eventTime,
+      };
+      delete item['reviewTime'];
+      return item;
+    });
+    return data;
   }
 
   @Action({
     rest: 'GET /statistics',
     auth: RestrictionType.PUBLIC,
+    cache: {
+      ttl: 24 * 60 * 60,
+    },
   })
   async getStatistics(ctx: Context<any>) {
     const completedFishStockings: FishStocking[] = await ctx.call('fishStockings.count', {
