@@ -2,10 +2,11 @@
 
 import { format } from 'date-fns';
 import moleculer, { Context } from 'moleculer';
-import { Action, Method, Service } from 'moleculer-decorators';
-import { RestrictionType } from '../types';
+import { Action, Event, Method, Service } from 'moleculer-decorators';
+import { EntityChangedParams, RestrictionType } from '../types';
 import { FishStocking } from './fishStockings.service';
 import { CompletedFishBatch, FishStockingsCompleted } from './fishStockingsCompleted.service';
+import { TenantUser } from './tenantUsers.service';
 
 const uetkStatisticsParams = {
   date: [
@@ -244,5 +245,15 @@ export default class FishAgesService extends moleculer.Service {
       aggregate[value.cadastralId] = [...(aggregate[value.cadastralId] || []), value];
       return aggregate;
     }, {} as BatchesById);
+  }
+
+  @Event()
+  async 'fishStockings.*'(ctx: Context<EntityChangedParams<TenantUser>>) {
+    switch (ctx.params.type) {
+      case 'create':
+      case 'update':
+      case 'remove':
+        await this.broker.cacher.clean('public.**');
+    }
   }
 }

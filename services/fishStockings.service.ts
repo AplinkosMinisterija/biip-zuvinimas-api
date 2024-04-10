@@ -417,11 +417,6 @@ export type FishStocking<
       all: ['beforeSelect', 'handleSort'],
       export: ['beforeSelect', 'handleSort'],
     },
-    after: {
-      review: ['handleCache'],
-      updateFishStocking: ['handleCache'],
-      remove: ['handleCache'],
-    },
   },
   actions: {
     remove: {
@@ -1335,10 +1330,5 @@ export default class FishStockingsService extends moleculer.Service {
         },
       );
     }
-  }
-
-  @Method
-  async handleCache() {
-    await this.broker.cacher.clean('public.**');
   }
 }
