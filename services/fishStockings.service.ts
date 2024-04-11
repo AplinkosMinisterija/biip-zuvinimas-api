@@ -1,6 +1,13 @@
 'use strict';
 
+import { isEmpty, map } from 'lodash';
+import moleculer, { Context } from 'moleculer';
+import { DbContextParameters } from 'moleculer-db';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
+import ApiGateway from 'moleculer-web';
+import XLSX from 'xlsx';
+import DbConnection from '../mixins/database.mixin';
+import GeometriesMixin from '../mixins/geometries.mixin';
 import { GeomFeatureCollection, coordinatesToGeometry, geometryToGeom } from '../modules/geometry';
 import {
   COMMON_DEFAULT_SCOPES,
@@ -9,32 +16,30 @@ import {
   CommonFields,
   CommonPopulates,
   EntityChangedParams,
-  FieldHookCallback, FishOrigin, FishStockingErrorMessages, FishStockingStatus,
-  RestrictionType, StatusLabels,
+  FieldHookCallback,
+  FishOrigin,
+  FishStockingErrorMessages,
+  FishStockingStatus,
+  RestrictionType,
+  StatusLabels,
   Table,
 } from '../types';
+import {
+  canProfileModifyFishStocking,
+  getStatus,
+  isTimeBeforeReview,
+  validateAssignedTo,
+  validateFishData,
+  validateFishOrigin,
+  validateStockingCustomer,
+} from '../utils/functions';
 import { AuthUserRole, UserAuthMeta } from './api.service';
-import { isEmpty, map } from 'lodash';
-import moleculer, { Context, RestSchema } from 'moleculer';
-import { DbContextParameters } from 'moleculer-db';
-import ApiGateway from 'moleculer-web';
-import XLSX from 'xlsx';
-import DbConnection from '../mixins/database.mixin';
-import GeometriesMixin from '../mixins/geometries.mixin';
 import { FishBatch } from './fishBatches.service';
 import { FishStockingPhoto } from './fishStockingPhotos.service';
 import { FishType } from './fishTypes.service';
 import { Setting } from './settings.service';
 import { Tenant } from './tenants.service';
 import { User } from './users.service';
-import {
-  canProfileModifyFishStocking, getStatus,
-  isTimeBeforeReview,
-  validateAssignedTo,
-  validateFishData,
-  validateFishOrigin,
-  validateStockingCustomer
-} from "../utils/functions";
 
 const Readable = require('stream').Readable;
 
@@ -98,7 +103,7 @@ interface Fields extends CommonFields {
   coordinates?: any;
   oldId: number;
   fishTypes: any;
-  status: FishStockingStatus
+  status: FishStockingStatus;
 }
 
 interface Populates extends CommonPopulates {
@@ -156,17 +161,17 @@ export type FishStocking<
           action: 'tenants.resolve',
         },
       },
-      fishOrigin: { type: "enum", values: Object.values(FishOrigin), required: true},
+      fishOrigin: { type: 'enum', values: Object.values(FishOrigin), required: true },
       fishOriginCompanyName: 'string',
       fishOriginReservoir: {
         type: 'object',
         required: false,
         properties: {
           area: 'number',
-          name: "string",
-          cadastral_id: "string",
-          municipality: "string"
-        }
+          name: 'string',
+          cadastral_id: 'string',
+          municipality: 'string',
+        },
       },
       location: {
         type: 'object',
@@ -201,7 +206,8 @@ export type FishStocking<
           });
         },
       },
-      batches: { // TODO: could be actual jsonb field instead of batches table. This would make selection and updates much easier.
+      batches: {
+        // TODO: could be actual jsonb field instead of batches table. This would make selection and updates much easier.
         type: 'array',
         readonly: false,
         required: true,
@@ -239,7 +245,7 @@ export type FishStocking<
       phone: {
         type: 'string',
         required: false,
-        pattern: /^(86|\+3706)\d{7}$/
+        pattern: /^(86|\+3706)\d{7}$/,
       },
       reviewedBy: {
         type: 'number',
@@ -337,7 +343,7 @@ export type FishStocking<
           phone: {
             type: 'string',
             required: true,
-            pattern: /^(86|\+3706)\d{7}$/
+            pattern: /^(86|\+3706)\d{7}$/,
           },
           organization: 'string',
         },
@@ -370,7 +376,8 @@ export type FishStocking<
           );
         },
       },
-      mandatory: { //TODO: mandatory flag could be part of location object
+      mandatory: {
+        //TODO: mandatory flag could be part of location object
         virtual: true,
         get: async ({ entity, ctx }: FieldHookCallback) => {
           const area = entity.location.area;
@@ -414,11 +421,10 @@ export type FishStocking<
   actions: {
     remove: {
       auth: RestrictionType.ADMIN,
-    }
-  }
+    },
+  },
 })
 export default class FishStockingsService extends moleculer.Service {
-
   @Action({
     rest: 'PATCH /:id',
     auth: RestrictionType.ADMIN,
@@ -427,17 +433,17 @@ export default class FishStockingsService extends moleculer.Service {
       comment: 'string|optional',
       tenant: 'number|optional',
       stockingCustomer: 'number|optional',
-      fishOrigin: { type: "enum", values: Object.values(FishOrigin), optional: true },
+      fishOrigin: { type: 'enum', values: Object.values(FishOrigin), optional: true },
       fishOriginCompanyName: 'string|optional',
       fishOriginReservoir: {
         type: 'object',
         optional: true,
         properties: {
           area: 'number',
-          name: "string",
-          cadastral_id: "string",
-          municipality: "string"
-        }
+          name: 'string',
+          cadastral_id: 'string',
+          municipality: 'string',
+        },
       },
       location: 'object|optional',
       geom: 'any|optional',
@@ -454,16 +460,16 @@ export default class FishStockingsService extends moleculer.Service {
             amount: 'number|integer|positive|convert',
             weight: 'number|optional|convert',
             reviewAmount: 'number|integer|positive|optional',
-            reviewWeight: 'number|optional'
-          }
-        }
+            reviewWeight: 'number|optional',
+          },
+        },
       },
       assignedTo: 'number|optional',
       phone: {
         // TODO: freelancer might not have phone number and currently it is not required for freelancer to enter phone number in FishStocking registration form.
         type: 'string',
         optional: true,
-        pattern: /^(86|\+3706)\d{7}$/
+        pattern: /^(86|\+3706)\d{7}$/,
       },
       waybillNo: 'string|optional',
       veterinaryApprovalNo: 'string|optional',
@@ -477,62 +483,68 @@ export default class FishStockingsService extends moleculer.Service {
           type: 'object',
           properties: {
             signedBy: 'string',
-            signature: 'string|base64'
-          }
-        }
+            signature: 'string|base64',
+          },
+        },
       },
       inspector: 'number|optional',
       canceledAt: 'string|optional',
     },
   })
   async updateFishStocking(ctx: Context<any, UserAuthMeta>) {
-    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});
+    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {
+      id: ctx.params.id,
+      populate: 'status',
+    });
     // Validate tenant
-    if(ctx.params.tenant) {
-      await ctx.call('tenants.resolve', {id: ctx.params.tenant, throwIfNotExist: true})
+    if (ctx.params.tenant) {
+      await ctx.call('tenants.resolve', { id: ctx.params.tenant, throwIfNotExist: true });
     }
     // Validate stockingCustomer
-    if(ctx.params.stockingCustomer) {
-      const stockingCustomer = await ctx.call('tenants.get', {id: ctx.params.stockingCustomer});
-      if(!stockingCustomer) {
+    if (ctx.params.stockingCustomer) {
+      const stockingCustomer = await ctx.call('tenants.get', { id: ctx.params.stockingCustomer });
+      if (!stockingCustomer) {
         throw new moleculer.Errors.ValidationError('Invalid stocking customer');
       }
     }
 
     // Validate fishType & fishAge
-    if(ctx.params.batches) {
+    if (ctx.params.batches) {
       await validateFishData(ctx);
     }
 
     // Validate assignedTo
-    if(ctx.params.assignedTo) {
+    if (ctx.params.assignedTo) {
       const tenant = ctx.params.tenant || existingFishStocking.tenant;
-      if (tenant) { // Tenant fish stocking
+      if (tenant) {
+        // Tenant fish stocking
         const tenantUser = await ctx.call('tenantUsers.findOne', {
           query: {
             tenant,
             user: ctx.params.assignedTo,
-          }
+          },
         });
-        if(!tenantUser) {
+        if (!tenantUser) {
           throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
         }
-      } else { // Freelancers fish stocking
+      } else {
+        // Freelancers fish stocking
         const user: User = await ctx.call('users.get', {
           id: ctx.params.assignedTo,
         });
         //if user does not exist or is not freelancer
-        if(!user || !user.isFreelancer) {
+        if (!user || !user.isFreelancer) {
           throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
         }
       }
     }
 
     // Validate canceledAt time
-    if(ctx.params.canceledAt) {
-      const eventTime: Date = ctx.params.eventTime && new Date(ctx.params.eventTime) || existingFishStocking.eventTime;
+    if (ctx.params.canceledAt) {
+      const eventTime: Date =
+        (ctx.params.eventTime && new Date(ctx.params.eventTime)) || existingFishStocking.eventTime;
       const canceledAtTime = new Date(ctx.params.canceledAt);
-      if(eventTime.getTime() - canceledAtTime.getTime() <= 0) {
+      if (eventTime.getTime() - canceledAtTime.getTime() <= 0) {
         throw new moleculer.Errors.ValidationError('Invalid "canceledAt" time');
       }
     }
@@ -546,7 +558,7 @@ export default class FishStockingsService extends moleculer.Service {
         id: ctx.params.inspector,
       });
       // Validate inspector
-      if(!inspector) {
+      if (!inspector) {
         throw new moleculer.Errors.ValidationError('Invalid inspector id');
       }
       const fishStocking = await this.updateEntity(ctx, {
@@ -577,7 +589,8 @@ export default class FishStockingsService extends moleculer.Service {
       }
       return fishStocking;
     }
-    return this.updateEntity(ctx);
+
+    return await this.updateEntity(ctx);
   }
 
   @Action({
@@ -585,9 +598,12 @@ export default class FishStockingsService extends moleculer.Service {
     auth: RestrictionType.USER,
   })
   async cancel(ctx: Context<any, UserAuthMeta>) {
-    const fishStocking = await this.resolveEntities(ctx, { id: ctx.params.id, populate: ['status'] });
+    const fishStocking = await this.resolveEntities(ctx, {
+      id: ctx.params.id,
+      populate: ['status'],
+    });
 
-    if(!fishStocking) {
+    if (!fishStocking) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
     }
 
@@ -602,8 +618,8 @@ export default class FishStockingsService extends moleculer.Service {
     }
 
     //if fish stocking is still in upcoming state, then it can be deleted.
-    if(fishStocking.status === FishStockingStatus.UPCOMING) {
-      return this.removeEntity(ctx, {id: fishStocking.id});
+    if (fishStocking.status === FishStockingStatus.UPCOMING) {
+      return this.removeEntity(ctx, { id: fishStocking.id });
     }
     //else it should be canceled
     return this.updateEntity(ctx, {
@@ -622,7 +638,7 @@ export default class FishStockingsService extends moleculer.Service {
         // TODO: freelancer might not have phone number and currently it is not required for freelancer to enter phone number in FishStocking registration form.
         type: 'string',
         optional: true,
-        pattern: /^(86|\+3706)\d{7}$/
+        pattern: /^(86|\+3706)\d{7}$/,
       },
       assignedTo: 'number|integer|convert',
       location: {
@@ -644,31 +660,30 @@ export default class FishStockingsService extends moleculer.Service {
             fishType: 'number|integer|positive|convert',
             fishAge: 'number|integer|positive|convert',
             amount: 'number|integer|positive|convert',
-            weight: 'number|positive|optional|convert'
+            weight: 'number|positive|optional|convert',
           },
-        }
+        },
       },
-      fishOrigin: { type: "enum", values: Object.values(FishOrigin) },
+      fishOrigin: { type: 'enum', values: Object.values(FishOrigin) },
       fishOriginCompanyName: 'string|optional',
       fishOriginReservoir: {
         type: 'object',
         optional: true,
         properties: {
           area: 'number',
-          name: "string",
-          cadastral_id: "string",
-          municipality: "string"
-        }
+          name: 'string',
+          cadastral_id: 'string',
+          municipality: 'string',
+        },
       },
       tenant: 'number|integer|optional|optional',
       stockingCustomer: 'number|integer|optional|convert',
     },
   })
   async register(ctx: Context<any, UserAuthMeta>) {
-
     // Validate eventTime
     const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
-    if(!timeBeforeReview) {
+    if (!timeBeforeReview) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
     }
 
@@ -690,16 +705,13 @@ export default class FishStockingsService extends moleculer.Service {
     const fishStocking: FishStocking = await this.createEntity(ctx);
 
     try {
-      await ctx.call(
-        'fishBatches.createBatches',
-          {
-            batches: ctx.params.batches,
-            fishStocking: fishStocking.id,
-          }
-      );
+      await ctx.call('fishBatches.createBatches', {
+        batches: ctx.params.batches,
+        fishStocking: fishStocking.id,
+      });
     } catch (e) {
       await this.removeEntity(ctx, { id: fishStocking.id });
-      throw  e;
+      throw e;
     }
 
     // Send email to notify about new fish stocking
@@ -731,7 +743,7 @@ export default class FishStockingsService extends moleculer.Service {
         // TODO: freelancer might not have phone number and currently it is not required for freelancer to enter phone number in FishStocking registration form.
         type: 'string',
         optional: true,
-        pattern: /^(86|\+3706)\d{7}$/
+        pattern: /^(86|\+3706)\d{7}$/,
       },
       assignedTo: {
         type: 'number',
@@ -763,9 +775,9 @@ export default class FishStockingsService extends moleculer.Service {
             fishType: 'number|convert',
             fishAge: 'number|convert',
             amount: 'number|convert',
-            weight: 'number|optional'
-          }
-        }
+            weight: 'number|optional',
+          },
+        },
       },
       fishOrigin: 'string',
       fishOriginCompanyName: 'string|optional',
@@ -774,50 +786,58 @@ export default class FishStockingsService extends moleculer.Service {
         optional: true,
         properties: {
           area: 'number',
-          name: "string",
-          cadastral_id: "string",
-          municipality: "string"
-        }
+          name: 'string',
+          cadastral_id: 'string',
+          municipality: 'string',
+        },
       },
       tenant: 'number|optional',
       stockingCustomer: 'number|optional',
     },
   })
   async updateRegistration(ctx: Context<any, UserAuthMeta>) {
-    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});;
-    if(!existingFishStocking) {
+    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {
+      id: ctx.params.id,
+      populate: 'status',
+    });
+    if (!existingFishStocking) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
     }
     // Validate fish stocking status
-    if(![FishStockingStatus.UPCOMING, FishStockingStatus.ONGOING].some(status => status ===existingFishStocking.status)) {
+    if (
+      ![FishStockingStatus.UPCOMING, FishStockingStatus.ONGOING].some(
+        (status) => status === existingFishStocking.status,
+      )
+    ) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
     //Validate if user can edit fishStocking
     canProfileModifyFishStocking(ctx, existingFishStocking);
     // Validate assignedTo
-    const assignedToChanged = !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
+    const assignedToChanged =
+      !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
     await validateAssignedTo(ctx);
     // If existing fish stocking time is within the time interval indicating that it is time to review fish stocking,
     // then most of the data cannot be edited except assignedTo.
-    if(existingFishStocking.status === FishStockingStatus.ONGOING)  {
-      if(assignedToChanged) {
-        try{
-          return this.updateEntity(ctx, {assignedTo: ctx.params.assignedTo});
+    if (existingFishStocking.status === FishStockingStatus.ONGOING) {
+      if (assignedToChanged) {
+        try {
+          return this.updateEntity(ctx, { assignedTo: ctx.params.assignedTo });
         } catch (e) {
           throw new moleculer.Errors.ValidationError('Could not update fishStocking');
         }
       }
     }
-    if(existingFishStocking.status === FishStockingStatus.UPCOMING) {
+    if (existingFishStocking.status === FishStockingStatus.UPCOMING) {
       // Validate event time
-      if(ctx.params.eventTime ) {
+      if (ctx.params.eventTime) {
         const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
-        if(!timeBeforeReview) {
+        if (!timeBeforeReview) {
           throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
         }
       }
       // Validate fishType & fishAge
-      if(ctx.params.batches) {
+      if (ctx.params.batches) {
         await validateFishData(ctx);
       }
       // Validate stocking customer
@@ -858,8 +878,8 @@ export default class FishStockingsService extends moleculer.Service {
             id: 'number|integer|positive|convert',
             reviewAmount: 'number|integer|positive|convert',
             reviewWeight: 'number|optional|convert',
-          }
-        }
+          },
+        },
       },
       signatures: 'any|optional',
       comment: 'string|optional',
@@ -891,10 +911,12 @@ export default class FishStockingsService extends moleculer.Service {
       UserAuthMeta
     >,
   ) {
+    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {
+      id: ctx.params.id,
+      populate: 'status',
+    });
 
-    const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {id: ctx.params.id, populate: 'status'});
-
-    if(!existingFishStocking) {
+    if (!existingFishStocking) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
     }
 
@@ -902,7 +924,7 @@ export default class FishStockingsService extends moleculer.Service {
     canProfileModifyFishStocking(ctx, existingFishStocking);
 
     // Validate if fishStocking status, it must be ONGOING.
-    if(existingFishStocking.status !== FishStockingStatus.ONGOING) {
+    if (existingFishStocking.status !== FishStockingStatus.ONGOING) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
 
@@ -961,7 +983,7 @@ export default class FishStockingsService extends moleculer.Service {
     const adapter = await this.getAdapter();
     const knex = adapter.client;
     return knex.raw(
-        `select distinct on ("location"::jsonb->'cadastral_id') "location" from "fish_stockings"`,
+      `select distinct on ("location"::jsonb->'cadastral_id') "location" from "fish_stockings"`,
     );
   }
   @Action()
@@ -987,89 +1009,6 @@ export default class FishStockingsService extends moleculer.Service {
   }
 
   @Action({
-    rest: <RestSchema>{
-      method: 'GET',
-      basePath: '/public',
-      path: '/uetk/statistics',
-    },
-    params: {
-      date: [
-        {
-          type: 'string',
-          optional: true,
-        },
-        {
-          type: 'object',
-          optional: true,
-        },
-      ],
-      fishType: {
-        type: 'number',
-        convert: true,
-        optional: true,
-      },
-    },
-    auth: RestrictionType.PUBLIC,
-  })
-  async getStatisticsForUETK(ctx: Context<{ date: any; fishType: number }>) {
-    const { fishType, date } = ctx.params;
-    const query: any = { reviewAmount: { $exists: true } };
-
-    if (fishType) {
-      query.fishType = fishType;
-    }
-
-    if (date) {
-      query.createdAt = date;
-      try {
-        query.createdAt = JSON.parse(date);
-      } catch (err) {}
-    }
-
-    const fishBatches: FishBatch<'fishStocking' | 'fishType'>[] = await ctx.call(
-      'fishBatches.find',
-      {
-        query,
-        populate: ['fishStocking', 'fishType'],
-      },
-    );
-
-    return Object.values(
-      fishBatches.reduce((groupedFishBatch, fishBatch) => {
-        const cadastralId = fishBatch?.fishStocking?.location?.cadastral_id;
-        const fishTypeId = fishBatch?.fishType?.id;
-        if (!cadastralId) return groupedFishBatch;
-
-        groupedFishBatch[cadastralId] = groupedFishBatch[cadastralId] || {
-          count: 0,
-          cadastralId: cadastralId,
-        };
-
-        groupedFishBatch[cadastralId].count += fishBatch.reviewAmount;
-
-        groupedFishBatch[cadastralId][fishTypeId] = groupedFishBatch[cadastralId][fishTypeId] || {
-          count: 0,
-          fishType: { id: fishTypeId, label: fishBatch?.fishType?.label },
-        };
-
-        groupedFishBatch[cadastralId][fishTypeId].count += fishBatch.reviewAmount;
-
-        return groupedFishBatch;
-      }, {} as any),
-    ).reduce(
-      (
-        groupedFishBatch: { [key: string]: any },
-        currentGroupedFishBatch: { [key: string]: any },
-      ) => {
-        const { cadastralId, count, ...rest } = currentGroupedFishBatch;
-        groupedFishBatch[cadastralId] = { count, byFishes: Object.values(rest) };
-        return groupedFishBatch;
-      },
-      {},
-    );
-  }
-
-  @Action({
     rest: 'GET /export',
   })
   async export(ctx: Context<any>) {
@@ -1079,7 +1018,7 @@ export default class FishStockingsService extends moleculer.Service {
       populate: ['assignedTo', 'reviewedBy', 'batches', 'status'],
     });
     const mappedData: any[] = [];
-    data.map((fishStocking: FishStocking<'reviewedBy'|'assignedTo' |'batches'>) => {
+    data.map((fishStocking: FishStocking<'reviewedBy' | 'assignedTo' | 'batches'>) => {
       const fishOrigin =
         fishStocking.fishOrigin === 'GROWN'
           ? fishStocking?.fishOriginCompanyName
@@ -1103,13 +1042,13 @@ export default class FishStockingsService extends moleculer.Service {
           Amžius: batch.fishAge?.label,
           'Planuojamas kiekis, vnt': batch.amount || 0,
           'Kiekis, vnt.': batch.reviewAmount || 0,
-          'Planuojamas svoris, kg' : batch.weight || 0,
+          'Planuojamas svoris, kg': batch.weight || 0,
           'Svoris, kg': batch.reviewWeight || 0,
           'Žuvys išaugintos': fishOrigin,
           'Važtaraščio nr.': waybillNo || '',
           'Atsakingas asmuo': assignedTo || '',
           'Veterinarinio pažymėjimo Nr.': veterinaryApprovalNo || '',
-          'Būsena': StatusLabels[status],
+          Būsena: StatusLabels[status],
         });
       }
     });
@@ -1144,7 +1083,6 @@ export default class FishStockingsService extends moleculer.Service {
       geom?: GeomFeatureCollection;
     }>,
   ) {
-
     const { geom, id } = ctx.params;
 
     if (geom?.features?.length) {
@@ -1261,7 +1199,6 @@ export default class FishStockingsService extends moleculer.Service {
         }
       }
       if (filters.status) {
-
         const settings: Setting = await ctx.call('settings.getSettings');
 
         const statusQueries: any = getStatusQueries(settings.maxTimeForRegistration);
@@ -1343,7 +1280,6 @@ export default class FishStockingsService extends moleculer.Service {
     }
     return q;
   }
-
 
   @Event()
   async 'fishBatches.*'(ctx: Context<EntityChangedParams<FishBatch>>) {
