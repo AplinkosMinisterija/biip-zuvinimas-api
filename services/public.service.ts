@@ -122,7 +122,7 @@ export default class FishAgesService extends moleculer.Service {
         'canceledAt',
         'geom',
       ],
-      populate: ['location', 'coordinates', 'status', 'batches'],
+      populate: ['location', 'coordinates', 'status', 'batches', 'geom'],
     };
 
     const fishStockings: FishStocking[] = await ctx.call('fishStockings.find', params);
