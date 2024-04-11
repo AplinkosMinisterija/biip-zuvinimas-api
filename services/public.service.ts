@@ -120,6 +120,7 @@ export default class FishAgesService extends moleculer.Service {
         'batches',
         'deletedAt',
         'canceledAt',
+        'geom',
       ],
       populate: ['location', 'coordinates', 'status', 'batches'],
     };
