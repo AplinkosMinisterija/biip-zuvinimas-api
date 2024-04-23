@@ -85,8 +85,6 @@ export default class AuthService extends moleculer.Service {
       meta,
     });
 
-    console.log('afterUserLoggedIn authUser', authUser);
-
     if (authUser?.type !== UserType.USER) {
       if (process.env.NODE_ENV === 'local') {
         return data;
@@ -100,8 +98,6 @@ export default class AuthService extends moleculer.Service {
         authUser: authUser.id,
       },
     });
-
-    console.log('afterUserLoggedIn user', user);
 
     if (!user) {
       // Should not be a case. But sometimes it happens
@@ -124,8 +120,6 @@ export default class AuthService extends moleculer.Service {
       { meta },
     );
 
-    console.log('afterUserLoggedIn authUserGroups', authUserGroups);
-
     const authGroups: any[] = authUserGroups?.groups || [];
 
     const isFreelancer = authGroups.some(
@@ -141,8 +135,6 @@ export default class AuthService extends moleculer.Service {
       isFreelancer,
     });
 
-    console.log('afterUserLoggedIn updatedUser', updatedUser);
-
     let i = 0;
     for (const authGroup of authGroups) {
       if (!authGroup.id) {
@@ -154,8 +146,6 @@ export default class AuthService extends moleculer.Service {
           authGroup: authGroup.id,
         },
       });
-
-      console.log('afterUserLoggedIn tenant ' + 1, tenant);
 
       if (!tenant) {
         continue;
@@ -173,8 +163,6 @@ export default class AuthService extends moleculer.Service {
         email: authGroup.companyEmail,
         phone: authGroup.companyPhone,
       });
-
-      console.log('afterUserLoggedIn updatedTenant ' + i, updatedTenant);
 
       // Update tenantUser role if changed in Auth module
       // Should only be a case when NOT OWNER becomes an OWNER (after login as "juridinis asmuo")
