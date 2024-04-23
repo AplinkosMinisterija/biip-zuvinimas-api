@@ -135,7 +135,6 @@ export default class AuthService extends moleculer.Service {
       isFreelancer,
     });
 
-    let i = 0;
     for (const authGroup of authGroups) {
       if (!authGroup.id) {
         continue;
