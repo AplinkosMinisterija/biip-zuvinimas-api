@@ -149,9 +149,14 @@ export default class AuthService extends moleculer.Service {
         continue;
       }
 
+      let name = tenant.name;
+      if (authGroup.name && !(authGroup.name as string).startsWith('Company: ')) {
+        name = authGroup.name;
+      }
+
       await ctx.call('tenants.update', {
         id: tenant.id,
-        name: authGroup.name,
+        name,
         code: authGroup.companyCode,
         email: authGroup.companyEmail,
         phone: authGroup.companyPhone,
