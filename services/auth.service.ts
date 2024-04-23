@@ -119,7 +119,6 @@ export default class AuthService extends moleculer.Service {
       },
       { meta },
     );
-
     const authGroups: any[] = authUserGroups?.groups || [];
 
     const isFreelancer = authGroups.some(
@@ -127,7 +126,7 @@ export default class AuthService extends moleculer.Service {
     );
 
     // update user info from e-vartai
-    const updatedUser = await ctx.call('users.update', {
+    await ctx.call('users.update', {
       id: user.id,
       firstName: authUser.firstName,
       lastName: authUser.lastName,
@@ -155,7 +154,7 @@ export default class AuthService extends moleculer.Service {
         name = authGroup.name;
       }
 
-      const updatedTenant = await ctx.call('tenants.update', {
+      await ctx.call('tenants.update', {
         id: tenant.id,
         name,
         code: authGroup.companyCode,
