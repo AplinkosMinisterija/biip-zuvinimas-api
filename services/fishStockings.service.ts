@@ -754,8 +754,6 @@ export default class FishStockingsService extends moleculer.Service {
     // Assign tenant if necessary
     ctx.params.tenant = ctx.meta.profile;
 
-    console.log('REGISTRATION', ctx.params);
-
     const fishStocking: FishStocking = await this.createEntity(ctx, ctx.params);
 
     try {
