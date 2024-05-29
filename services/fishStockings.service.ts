@@ -819,7 +819,7 @@ export default class FishStockingsService extends moleculer.Service {
             type: 'object',
             properties: {
               id: 'number',
-              name: 'number',
+              name: 'string',
             },
           },
           area: 'number|optional',
