@@ -189,7 +189,7 @@ export default class LocationsService extends moleculer.Service {
     const { features } = await data.json();
     return {
       id: Number(features[0]?.properties?.kodas),
-      name: features[0]?.properties?.pavadinimas,
+      name: features[0]?.properties?.pavadinimas || '',
     };
   }
 }
