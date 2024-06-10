@@ -552,6 +552,14 @@ export default class FishStockingsService extends moleculer.Service {
     // Validate fishOrigin
     await validateFishOrigin(ctx, existingFishStocking);
 
+    // Admin can add, remove or update batches
+    if (ctx.params.batches) {
+      await ctx.call('fishBatches.updateBatches', {
+        batches: ctx.params.batches,
+        fishStocking: Number(ctx.params.id),
+      });
+    }
+
     const fishStockingBeforeUpdate = await this.resolveEntities(ctx);
     if (ctx.params.inspector) {
       const inspector: any = await ctx.call('auth.users.get', {
@@ -572,13 +580,7 @@ export default class FishStockingsService extends moleculer.Service {
           organization: 'AAD',
         },
       });
-      // Inspector can add, remove or update batches
-      if (ctx.params.batches) {
-        await ctx.call('fishBatches.updateBatches', {
-          batches: ctx.params.batches,
-          fishStocking: Number(ctx.params.id),
-        });
-      }
+
       if (fishStockingBeforeUpdate.inspector?.id !== ctx.params.inspector) {
         if (inspector) {
           await ctx.call('mail.sendFishStockingAssignedEmail', {
