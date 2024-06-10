@@ -268,6 +268,17 @@ export type FishStocking<
       reviewLocation: {
         type: 'any',
         raw: true,
+        populate(ctx: any, _values: any, fishStockings: FishStocking[]) {
+          return Promise.all(
+            fishStockings.map((fishStocking) => {
+              return ctx.call('fishStockings.getGeometryJson', {
+                field: 'reviewLocation',
+                asField: 'reviewLocation',
+                id: fishStocking.id,
+              });
+            }),
+          );
+        },
       },
       reviewTime: 'date',
       waybillNo: 'string',

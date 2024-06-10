@@ -1,9 +1,9 @@
 'use strict';
 
-import { find } from 'lodash';
+import { find, map } from 'lodash';
 import moleculer, { Context } from 'moleculer';
 import { Action, Method, Service } from 'moleculer-decorators';
-import { GeomFeatureCollection } from '../modules/geometry';
+import { GeomFeatureCollection, coordinatesToGeometry } from '../modules/geometry';
 import { CommonFields, CommonPopulates, RestrictionType, Table } from '../types';
 import { UserAuthMeta } from './api.service';
 const getBox = (geom: GeomFeatureCollection, tolerance: number = 0.001) => {
@@ -99,6 +99,98 @@ export default class LocationsService extends moleculer.Service {
       };
     } catch (error) {
       throw new Error(`Failed to fetch: ${error.message}`);
+    }
+  }
+
+  @Action({
+    rest: 'GET /',
+    auth: RestrictionType.PUBLIC,
+    params: {
+      geom: 'string|optional',
+      search: 'any|optional',
+      withGeom: 'any|optional',
+    },
+    cache: false,
+  })
+  async search(
+    ctx: Context<
+      {
+        search?: string;
+        geom?: string;
+        withGeom?: any;
+      },
+      UserAuthMeta
+    >,
+  ) {
+    const { geom, search, withGeom, ...rest } = ctx.params;
+    if (geom) {
+      const geomJson: GeomFeatureCollection = JSON.parse(geom);
+      const riverOrLake = await this.getRiverOrLakeFromPoint(geomJson);
+      return riverOrLake;
+    } else if (search) {
+      const url =
+        `${process.env.INTERNAL_API}/uetk/search?` + new URLSearchParams({ search, ...rest });
+      const response = await fetch(url);
+
+      const data = await response.json();
+
+      return map(data.rows, (item) => {
+        const location: any = {
+          cadastral_id: item.properties.cadastral_id,
+          name: item.properties.name,
+          municipality: item.properties.municipality,
+          area: item.properties.area,
+        };
+        if (withGeom === 'true') {
+          location['geom'] = coordinatesToGeometry({
+            x: item.properties.lon,
+            y: item.properties.lat,
+          });
+        }
+        return location;
+      });
+    }
+  }
+
+  @Method
+  async getRiverOrLakeFromPoint(geom: GeomFeatureCollection) {
+    if (geom?.features?.length) {
+      try {
+        const box = getBox(geom, 200);
+        const rivers = `${process.env.GEO_SERVER}/qgisserver/uetk_zuvinimas?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=rivers&OUTPUTFORMAT=application/json&GEOMETRYNAME=centroid&BBOX=${box}`;
+        const riversData = await fetch(rivers, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        const riversResult = await riversData.json();
+        const municipality = await this.getMunicipalityFromPoint(geom);
+        const lakes = `${process.env.GEO_SERVER}/qgisserver/uetk_zuvinimas?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=lakes_ponds&OUTPUTFORMAT=application/json&GEOMETRYNAME=centroid&BBOX=${box}`;
+        const lakesData = await fetch(lakes, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        const lakesResult = await lakesData.json();
+        const list = [...riversResult.features, ...lakesResult.features];
+
+        const mappedList = map(list, (item) => {
+          return {
+            cadastral_id: item.properties.kadastro_id,
+            name: item.properties.pavadinimas,
+            municipality: municipality,
+            area: item.properties.st_area
+              ? (item.properties.st_area / 10000).toFixed(2)
+              : undefined,
+          };
+        });
+
+        return mappedList;
+      } catch (err) {
+        throw new moleculer.Errors.ValidationError(err.message);
+      }
+    } else {
+      throw new moleculer.Errors.ValidationError('Invalid geometry');
     }
   }
 
