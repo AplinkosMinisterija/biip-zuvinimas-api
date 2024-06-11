@@ -1155,7 +1155,7 @@ export default class FishStockingsService extends moleculer.Service {
   async parseReviewLocationField(
     ctx: Context<{
       id?: number;
-      reviewLocation?: any;
+      reviewLocation?: { lat: number; lng: number };
     }>,
   ) {
     const { reviewLocation } = ctx.params;
@@ -1165,7 +1165,10 @@ export default class FishStockingsService extends moleculer.Service {
       return ctx;
     }
 
-    const reviewLocationGeom: any = coordinatesToGeometry(reviewLocation);
+    const reviewLocationGeom: any = coordinatesToGeometry({
+      x: reviewLocation.lng,
+      y: reviewLocation.lat,
+    });
     if (reviewLocationGeom?.features?.length) {
       const adapter = await this.getAdapter(ctx);
       const table = adapter.getTable();
