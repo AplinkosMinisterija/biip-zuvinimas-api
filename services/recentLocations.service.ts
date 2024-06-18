@@ -5,7 +5,6 @@ import { Method, Service } from 'moleculer-decorators';
 import DbConnection from '../mixins/database.mixin';
 import { RestrictionType } from '../types';
 import { UserAuthMeta } from './api.service';
-import { FishStocking } from './fishStockings.service';
 
 const mapItem = (data: RecentLocation) => {
   const { cadastralId, ...rest } = data;
@@ -19,6 +18,7 @@ export interface RecentLocation {
     id: number;
     name: string;
   };
+  fishStockingId: number;
   geom: any;
 }
 
@@ -46,18 +46,28 @@ export interface RecentLocation {
           name: 'string',
         },
       },
+      fishStockingId: {
+        type: 'number',
+        columnType: 'integer',
+        columnName: 'fishStockingId',
+        required: true,
+        immutable: true,
+        hidden: 'byDefault',
+      },
       geom: {
         type: 'any',
-        populate: async (ctx: Context, _values: any, entities: RecentLocation[]) => {
-          const fishStockingIds = entities.map((entity) => entity.geom);
-          const fishStockings: FishStocking[] = await ctx.call('fishStockings.find', {
-            query: {
-              id: { $in: fishStockingIds },
-            },
-            scope: false,
-            populate: ['geom'],
-          });
-          return entities.map((entity) => fishStockings.find((f) => f.id === entity.geom)?.geom);
+        raw: true,
+        virtual: true,
+        async populate(ctx: any, _values: any, recentLocations: RecentLocation[]) {
+          return Promise.all(
+            recentLocations.map(async (recentLocation) => {
+              return ctx.call('fishStockings.getGeometryJson', {
+                field: 'geom',
+                asField: 'geom',
+                id: recentLocation.fishStockingId,
+              });
+            }),
+          );
         },
       },
       tenant: {

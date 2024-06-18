@@ -223,6 +223,7 @@ export type FishStocking<
         virtual: true,
         default: () => [],
         async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
+          if (!ctx) return;
           const fishBatches: FishBatch[] = await ctx.call('fishBatches.find', {
             query: {
               fishStocking: {
@@ -364,6 +365,7 @@ export type FishStocking<
         virtual: true,
         default: () => [],
         async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
+          if (!ctx) return;
           const fishBatches: FishBatch[] = await ctx.call('fishBatches.find', {
             query: {
               fishStocking: {
@@ -389,6 +391,7 @@ export type FishStocking<
         //TODO: mandatory flag could be part of location object
         virtual: true,
         get: async ({ entity, ctx }: FieldHookCallback) => {
+          if (!ctx) return;
           const area = entity.location.area;
           if (area && area > 50) {
             return true;
@@ -423,18 +426,14 @@ export type FishStocking<
             }
             return {
               ...query,
-              $raw: {
-                condition: `("location"::jsonb->'municipality'->'id')::int in (${ctx.meta.authUser.municipalities?.toString()})`,
-              },
+              $raw: `("location"::jsonb->'municipality'->'id')::int in (${ctx.meta.authUser.municipalities?.toString()})`,
             };
           }
           // sesijoj imone
           if (ctx.meta.profile && ctx.meta?.user) {
             return {
               ...query,
-              $raw: {
-                condition: `(tenant_id = ${ctx.meta.profile} OR stocking_customer_id = ${ctx.meta.profile})`,
-              },
+              $raw: `(tenant_id = ${ctx.meta.profile} OR stocking_customer_id = ${ctx.meta.profile})`,
             };
           }
 
@@ -452,7 +451,7 @@ export type FishStocking<
       ...COMMON_SCOPES,
     },
     defaultScopes: [...COMMON_DEFAULT_SCOPES, 'profile'],
-    defaultPopulates: ['batches', 'status', 'mandatory'],
+    defaultPopulates: ['batches', 'status'],
   },
   hooks: {
     before: {
@@ -1029,8 +1028,7 @@ export default class FishStockingsService extends moleculer.Service {
     auth: RestrictionType.USER,
   })
   async getRecentLocations(ctx: Context<any, UserAuthMeta>) {
-    const recentLocations = await ctx.call('recentLocations.list');
-    return recentLocations;
+    return await ctx.call('recentLocations.list');
   }
 
   @Action()
@@ -1553,7 +1551,7 @@ export default class FishStockingsService extends moleculer.Service {
       ];
 
       for (const item of data) {
-        const fishStocking = await this.createEntity(null, item, { permissive: true });
+        const fishStocking = await this.createEntity(null, item);
         if (fishStocking?.id) {
           const batches = item.batches.map((batch: FishBatch) => ({
             ...batch,

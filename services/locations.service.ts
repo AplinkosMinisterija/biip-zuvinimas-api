@@ -75,16 +75,14 @@ export default class LocationsService extends moleculer.Service {
           'ISOLATED_WATER_BODY',
         ],
       },
-      ...params.query,
+      ...(params.query || {}),
     };
     searchParams.set('query', JSON.stringify(query));
     const queryString = searchParams.toString();
 
     const url = `${targetUrl}?${queryString}`;
     try {
-      const response = await fetch(url);
-      const data = await response.json();
-
+      const data = await fetch(url).then((r) => r.json());
       const municipalities = await this.actions.getMunicipalities(null, { parentCtx: ctx });
       const rows = data?.rows?.map((item: any) => ({
         name: item.name,
