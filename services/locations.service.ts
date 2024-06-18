@@ -1,6 +1,6 @@
 'use strict';
 
-import { find, isEmpty, map } from 'lodash';
+import { find, map } from 'lodash';
 import moleculer, { Context } from 'moleculer';
 import { Action, Method, Service } from 'moleculer-decorators';
 import { GeomFeatureCollection, coordinatesToGeometry } from '../modules/geometry';
@@ -22,7 +22,10 @@ const getBox = (geom: GeomFeatureCollection, tolerance: number = 0.001) => {
 interface Fields extends CommonFields {
   cadastral_id: string;
   name: string;
-  municipality: string;
+  municipality: {
+    id: number;
+    name: string;
+  };
 }
 
 interface Populates extends CommonPopulates {}
@@ -36,6 +39,67 @@ export type Location<
   name: 'locations',
 })
 export default class LocationsService extends moleculer.Service {
+  @Action({
+    rest: 'GET /uetk',
+    auth: RestrictionType.PUBLIC,
+    params: {
+      search: {
+        type: 'string',
+        optional: true,
+      },
+    },
+    cache: false,
+  })
+  async uetkSearch(
+    ctx: Context<
+      {
+        search?: string;
+        query: any;
+      },
+      UserAuthMeta
+    >,
+  ) {
+    const targetUrl = `${process.env.UETK_URL}/objects/search`;
+    const params: any = ctx.params;
+    const searchParams = new URLSearchParams(params);
+    const query = {
+      category: {
+        $in: [
+          'RIVER',
+          'CANAL',
+          'INTERMEDIATE_WATER_BODY',
+          'TERRITORIAL_WATER_BODY',
+          'NATURAL_LAKE',
+          'PONDED_LAKE',
+          'POND',
+          'ISOLATED_WATER_BODY',
+        ],
+      },
+      ...(params.query || {}),
+    };
+    searchParams.set('query', JSON.stringify(query));
+    const queryString = searchParams.toString();
+
+    const url = `${targetUrl}?${queryString}`;
+    try {
+      const data = await fetch(url).then((r) => r.json());
+      const municipalities = await this.actions.getMunicipalities(null, { parentCtx: ctx });
+      const rows = data?.rows?.map((item: any) => ({
+        name: item.name,
+        cadastral_id: item.cadastralId,
+        municipality: municipalities?.rows?.find((m: any) => m.name === item.municipality),
+        area: item.area,
+      }));
+
+      return {
+        ...data,
+        rows,
+      };
+    } catch (error) {
+      throw new Error(`Failed to fetch: ${error.message}`);
+    }
+  }
+
   @Action({
     rest: 'GET /',
     auth: RestrictionType.PUBLIC,
@@ -64,7 +128,6 @@ export default class LocationsService extends moleculer.Service {
     } else if (search) {
       const url =
         `${process.env.INTERNAL_API}/uetk/search?` + new URLSearchParams({ search, ...rest });
-
       const response = await fetch(url);
 
       const data = await response.json();
@@ -87,21 +150,60 @@ export default class LocationsService extends moleculer.Service {
     }
   }
 
-  @Action()
-  async getLocationsByCadastralIds(ctx: Context<{ locations: string[] }>) {
-    const promises = map(ctx.params.locations, (location) =>
-      ctx.call('locations.search', { search: location }),
-    );
+  @Method
+  async getRiverOrLakeFromPoint(geom: GeomFeatureCollection) {
+    if (geom?.features?.length) {
+      try {
+        const box = getBox(geom, 200);
+        const rivers = `${process.env.GEO_SERVER}/qgisserver/uetk_zuvinimas?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=rivers&OUTPUTFORMAT=application/json&GEOMETRYNAME=centroid&BBOX=${box}`;
+        const riversData = await fetch(rivers, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        const riversResult = await riversData.json();
+        const municipality = await this.getMunicipalityFromPoint(geom);
+        const lakes = `${process.env.GEO_SERVER}/qgisserver/uetk_zuvinimas?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=lakes_ponds&OUTPUTFORMAT=application/json&GEOMETRYNAME=centroid&BBOX=${box}`;
+        const lakesData = await fetch(lakes, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        const lakesResult = await lakesData.json();
+        const list = [...riversResult.features, ...lakesResult.features];
 
-    const result: any = await Promise.all(promises);
+        const mappedList = map(list, (item) => {
+          return {
+            cadastral_id: item.properties.kadastro_id,
+            name: item.properties.pavadinimas,
+            municipality: municipality,
+            area: item.properties.st_area
+              ? (item.properties.st_area / 10000).toFixed(2)
+              : undefined,
+          };
+        });
 
-    const data: Location[] = [];
-    for (const item of result) {
-      if (!isEmpty(item)) {
-        data.push(item[0]);
+        return mappedList;
+      } catch (err) {
+        throw new moleculer.Errors.ValidationError(err.message);
       }
+    } else {
+      throw new moleculer.Errors.ValidationError('Invalid geometry');
     }
-    return data;
+  }
+
+  @Action({
+    rest: 'GET /municipalities/search',
+    params: {
+      geom: 'string|optional',
+    },
+    cache: {
+      ttl: 24 * 60 * 60,
+    },
+  })
+  async searchMunicipalities(ctx: Context<{ geom?: string }>) {
+    const geom: GeomFeatureCollection = JSON.parse(ctx.params.geom);
+    return this.getMunicipalityFromPoint(geom);
   }
 
   @Action({
@@ -153,46 +255,16 @@ export default class LocationsService extends moleculer.Service {
     return find(municipalities?.rows, { id: ctx.params.id });
   }
 
-  @Method
-  async getRiverOrLakeFromPoint(geom: GeomFeatureCollection) {
-    if (geom?.features?.length) {
-      try {
-        const box = getBox(geom, 200);
-        const rivers = `${process.env.GEO_SERVER}/qgisserver/uetk_zuvinimas?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=rivers&OUTPUTFORMAT=application/json&GEOMETRYNAME=centroid&BBOX=${box}`;
-        const riversData = await fetch(rivers, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        const riversResult = await riversData.json();
-        const municipality = await this.getMunicipalityFromPoint(geom);
-        const lakes = `${process.env.GEO_SERVER}/qgisserver/uetk_zuvinimas?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=lakes_ponds&OUTPUTFORMAT=application/json&GEOMETRYNAME=centroid&BBOX=${box}`;
-        const lakesData = await fetch(lakes, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        const lakesResult = await lakesData.json();
-        const list = [...riversResult.features, ...lakesResult.features];
-
-        const mappedList = map(list, (item) => {
-          return {
-            cadastral_id: item.properties.kadastro_id,
-            name: item.properties.pavadinimas,
-            municipality: municipality,
-            area: item.properties.st_area
-              ? (item.properties.st_area / 10000).toFixed(2)
-              : undefined,
-          };
-        });
-
-        return mappedList;
-      } catch (err) {
-        throw new moleculer.Errors.ValidationError(err.message);
-      }
-    } else {
-      throw new moleculer.Errors.ValidationError('Invalid geometry');
-    }
+  @Action({
+    params: {
+      name: 'string',
+    },
+  })
+  async searchMunicipality(ctx: Context<{ name: string }>) {
+    const municipalities = await this.actions.getMunicipalities(null, {
+      parentCtx: ctx,
+    });
+    return find(municipalities?.rows, { name: ctx.params.name });
   }
 
   @Method
@@ -207,7 +279,7 @@ export default class LocationsService extends moleculer.Service {
     const { features } = await data.json();
     return {
       id: Number(features[0]?.properties?.kodas),
-      name: features[0]?.properties?.pavadinimas,
+      name: features[0]?.properties?.pavadinimas || '',
     };
   }
 }
