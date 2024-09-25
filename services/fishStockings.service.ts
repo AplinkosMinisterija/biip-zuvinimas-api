@@ -74,6 +74,8 @@ interface Fields extends CommonFields {
   location: {
     name: string;
     area: number;
+    length: number;
+    category: string;
     cadastral_id: string;
     municipality: {
       id: number;
@@ -190,6 +192,9 @@ export type FishStocking<
           cadastral_id: 'string',
           name: 'string',
           municipality: 'object',
+          area: 'number|optional',
+          length: 'number|optional',
+          category: 'string',
         },
       },
       geom: {
@@ -705,6 +710,9 @@ export default class FishStockingsService extends moleculer.Service {
           cadastral_id: 'string',
           name: 'string',
           municipality: 'object',
+          area: 'number|optional|convert',
+          length: 'number|optional|convert',
+          category: 'string',
         },
       },
       geom: 'any',
@@ -745,6 +753,7 @@ export default class FishStockingsService extends moleculer.Service {
     },
   })
   async register(ctx: Context<any, UserAuthMeta>) {
+    console.log('register location', ctx.params.location);
     // Validate eventTime
     const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
     if (!timeBeforeReview) {
@@ -832,7 +841,9 @@ export default class FishStockingsService extends moleculer.Service {
               name: 'string',
             },
           },
-          area: 'number|optional',
+          area: 'number|optional|convert',
+          length: 'number|optional|convert',
+          category: 'string',
         },
       },
       batches: {

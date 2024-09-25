@@ -46,6 +46,9 @@ export interface RecentLocation {
           name: 'string',
         },
       },
+      area: 'number',
+      length: 'number',
+      category: 'string',
       fishStockingId: {
         type: 'number',
         columnType: 'integer',
