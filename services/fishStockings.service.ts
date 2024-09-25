@@ -1081,6 +1081,7 @@ export default class FishStockingsService extends moleculer.Service {
           : fishStocking?.fishOriginReservoir;
       const date = fishStocking?.eventTime || '-';
       const municipality = fishStocking.location.municipality?.name || '-';
+      const category = fishStocking.location.category || '-';
       const waterBodyName = fishStocking.location?.name || '-';
       const waterBodyCode = fishStocking.location.cadastral_id || '-';
       const waybillNo = fishStocking.waybillNo || '-';
@@ -1094,6 +1095,7 @@ export default class FishStockingsService extends moleculer.Service {
           Rajonas: municipality,
           'Vandens telkinio pavadinimas': waterBodyName,
           'Telkinio kodas': waterBodyCode,
+          'Telkinio kategorija': category,
           'Žuvų, vėžių rūšis': batch.fishType?.label,
           Amžius: batch.fishAge?.label,
           'Planuojamas kiekis, vnt': batch.amount || 0,
