@@ -36,6 +36,7 @@ import { AuthUserRole, UserAuthMeta } from './api.service';
 import { FishBatch } from './fishBatches.service';
 import { FishStockingPhoto } from './fishStockingPhotos.service';
 import { FishType } from './fishTypes.service';
+import { Location } from './locations.service';
 import { Setting } from './settings.service';
 import { Tenant } from './tenants.service';
 import { User } from './users.service';
@@ -71,15 +72,7 @@ interface Fields extends CommonFields {
       name: string;
     };
   };
-  location: {
-    name: string;
-    area: number;
-    cadastral_id: string;
-    municipality: {
-      id: number;
-      name: string;
-    };
-  };
+  location: Location;
   geom: any;
   batches: Array<FishBatch['id']>;
   assignedTo: User['id'];
@@ -129,7 +122,6 @@ export type FishStocking<
   mixins: [
     DbConnection({
       createActions: {
-        update: false,
         create: false,
       },
     }),
@@ -190,6 +182,9 @@ export type FishStocking<
           cadastral_id: 'string',
           name: 'string',
           municipality: 'object',
+          area: 'number|optional',
+          length: 'number|optional',
+          category: 'string',
         },
       },
       geom: {
@@ -456,7 +451,6 @@ export type FishStocking<
   hooks: {
     before: {
       create: ['parseGeomField', 'parseReviewLocationField'],
-      updateFishStocking: ['parseGeomField'],
       updateRegistration: ['parseGeomField'],
       register: ['parseGeomField'],
       review: ['parseReviewLocationField'],
@@ -471,6 +465,9 @@ export type FishStocking<
   actions: {
     remove: {
       auth: RestrictionType.ADMIN,
+    },
+    update: {
+      rest: null,
     },
   },
 })
@@ -705,6 +702,9 @@ export default class FishStockingsService extends moleculer.Service {
           cadastral_id: 'string',
           name: 'string',
           municipality: 'object',
+          area: 'number|optional|convert',
+          length: 'number|optional|convert',
+          category: 'string',
         },
       },
       geom: 'any',
@@ -832,7 +832,9 @@ export default class FishStockingsService extends moleculer.Service {
               name: 'string',
             },
           },
-          area: 'number|optional',
+          area: 'number|optional|convert',
+          length: 'number|optional|convert',
+          category: 'string',
         },
       },
       batches: {
@@ -1070,6 +1072,7 @@ export default class FishStockingsService extends moleculer.Service {
           : fishStocking?.fishOriginReservoir;
       const date = fishStocking?.eventTime || '-';
       const municipality = fishStocking.location.municipality?.name || '-';
+      const category = fishStocking.location.category || '-';
       const waterBodyName = fishStocking.location?.name || '-';
       const waterBodyCode = fishStocking.location.cadastral_id || '-';
       const waybillNo = fishStocking.waybillNo || '-';
@@ -1083,6 +1086,7 @@ export default class FishStockingsService extends moleculer.Service {
           Rajonas: municipality,
           'Vandens telkinio pavadinimas': waterBodyName,
           'Telkinio kodas': waterBodyCode,
+          'Telkinio kategorija': category,
           'Žuvų, vėžių rūšis': batch.fishType?.label,
           Amžius: batch.fishAge?.label,
           'Planuojamas kiekis, vnt': batch.amount || 0,
@@ -1327,242 +1331,6 @@ export default class FishStockingsService extends moleculer.Service {
     return q;
   }
 
-  @Method
-  async seedDB() {
-    if (process.env.NODE_ENV === 'local') {
-      await this.broker.waitForServices([
-        'users',
-        'tenants',
-        'tenantUsers',
-        'fishBatches',
-        'mandatoryLocations',
-      ]);
-
-      const user: User[] = await this.broker.call('users.find', {
-        query: {
-          email: 'vadovas@imone.lt',
-        },
-      });
-
-      const reviewData = {
-        waybillNo: '1',
-        veterinaryApprovalNo: '1',
-        veterinaryApprovalOrderNo: '1',
-        containerWaterTemp: '17',
-        waterTemp: '16',
-      };
-
-      const data: any[] = [
-        {
-          ...reviewData,
-          eventTime: '2021-06-06T17:09:40.164Z',
-          reviewTime: '2021-06-06T18:05:40.164Z',
-          createdBy: user?.[0]?.id,
-          assignedTo: user?.[0]?.id,
-          reviewedBy: user?.[0]?.id,
-          phone: '861111111',
-          batches: [
-            {
-              amount: 100,
-              reviewAmount: 100,
-              fishType: 1,
-              fishAge: 2,
-            },
-            {
-              amount: 150,
-              reviewAmount: 150,
-              fishType: 5,
-              fishAge: 4,
-            },
-          ],
-          fishTypes: {
-            1: 100,
-            5: 150,
-          },
-          geom: '0101000020120D0000000000004CA51E4100000080F3325741',
-          fishOrigin: 'GROWN',
-          fishOriginCompanyName: 'Test',
-          location: {
-            name: 'Nemunas',
-            cadastral_id: '10010001',
-            municipality: {
-              id: 52,
-              name: 'Kauno r. sav.',
-            },
-          },
-          comment: 'komentaras',
-        },
-        {
-          ...reviewData,
-          eventTime: '2024-04-06T17:09:40.164Z',
-          reviewTime: '2021-04-07T12:05:40.164Z',
-          createdBy: user?.[0]?.id,
-          assignedTo: user?.[0]?.id,
-          reviewedBy: user?.[0]?.id,
-          phone: '861111111',
-          batches: [
-            {
-              amount: 10,
-              reviewAmount: 10,
-              fishType: 2,
-              fishAge: 3,
-            },
-            {
-              amount: 20,
-              reviewAmount: 20,
-              fishType: 4,
-              fishAge: 1,
-            },
-          ],
-          fishTypes: {
-            2: 10,
-            4: 20,
-          },
-          geom: '0101000020120D000000000000309E2141000000405B155741',
-          fishOrigin: 'GROWN',
-          fishOriginCompanyName: 'Test',
-          location: {
-            name: 'Baluošas',
-            cadastral_id: '10010002',
-            municipality: {
-              id: 7,
-              name: 'Švenčionių r. sav.',
-            },
-          },
-          comment: 'komentaras',
-        },
-        {
-          ...reviewData,
-          eventTime: '2024-05-06T17:09:40.164Z',
-          reviewTime: '2024-04-07T12:05:40.164Z',
-          createdBy: user?.[0]?.id,
-          assignedTo: user?.[0]?.id,
-          reviewedBy: user?.[0]?.id,
-          phone: '861111111',
-          batches: [
-            {
-              amount: 50,
-              fishType: 6,
-              fishAge: 1,
-            },
-            {
-              amount: 50,
-              fishType: 3,
-              fishAge: 3,
-            },
-          ],
-          fishTypes: {
-            6: 50,
-            3: 50,
-          },
-          geom: '0101000020120D000000000000000B1F410000004092315741',
-          fishOrigin: 'GROWN',
-          fishOriginCompanyName: 'Test',
-          location: {
-            name: 'Dubrius',
-            cadastral_id: '10011443',
-            municipality: {
-              id: 52,
-              name: 'Kauno r. sav.',
-            },
-          },
-          comment: 'komentaras',
-        },
-        {
-          ...reviewData,
-          eventTime: '2022-05-06T17:09:40.164Z',
-          reviewTime: '2022-05-07T12:05:40.164Z',
-          createdBy: user?.[0]?.id,
-          assignedTo: user?.[0]?.id,
-          reviewedBy: user?.[0]?.id,
-          phone: '861111111',
-          batches: [
-            {
-              amount: 70,
-              reviewAmount: 70,
-              fishType: 9,
-              fishAge: 1,
-            },
-            {
-              amount: 70,
-              reviewAmount: 70,
-              fishType: 1,
-              fishAge: 6,
-            },
-          ],
-          fishTypes: {
-            9: 70,
-            1: 70,
-          },
-          geom: '0101000020120D00000000000080351F41000000C0A0345741',
-          fishOrigin: 'GROWN',
-          fishOriginCompanyName: 'Test',
-          location: {
-            area: '5.89',
-            name: 'Paežeris',
-            cadastral_id: '10031211',
-            municipality: {
-              id: 49,
-              name: 'Kaišiadorių r. sav.',
-            },
-          },
-          comment: 'komentaras',
-        },
-        {
-          ...reviewData,
-          eventTime: '2023-05-06T17:09:40.164Z',
-          reviewTime: '2023-05-07T12:05:40.164Z',
-          createdBy: user?.[0]?.id,
-          assignedTo: user?.[0]?.id,
-          reviewedBy: user?.[0]?.id,
-          phone: '861111111',
-          batches: [
-            {
-              amount: 300,
-              reviewAmount: 300,
-              fishType: 1,
-              fishAge: 1,
-            },
-            {
-              amount: 300,
-              reviewAmount: 300,
-              fishType: 10,
-              fishAge: 1,
-            },
-          ],
-          fishTypes: {
-            1: 300,
-            10: 300,
-          },
-          geom: '0101000020120D00008C58F93F86DF1B418E299256749F5741',
-          fishOrigin: 'GROWN',
-          fishOriginCompanyName: 'Test',
-          location: {
-            cadastral_id: '41040012',
-            name: 'Rėkyva',
-            municipality: {
-              id: 29,
-              name: 'Šiaulių m. sav.',
-            },
-            area: '1196.84',
-          },
-          comment: 'komentaras',
-        },
-      ];
-
-      for (const item of data) {
-        const fishStocking = await this.createEntity(null, item);
-        if (fishStocking?.id) {
-          const batches = item.batches.map((batch: FishBatch) => ({
-            ...batch,
-            fishStocking: fishStocking.id,
-          }));
-          await this.broker.call('fishBatches.createMany', batches);
-        }
-      }
-    }
-  }
-
   @Event()
   async 'fishBatches.*'(ctx: Context<EntityChangedParams<FishBatch>>) {
     //Generates an object with amounts of fish stocked and stores in the database.
@@ -1611,6 +1379,36 @@ export default class FishStockingsService extends moleculer.Service {
           permissive: true,
         },
       );
+    }
+  }
+
+  //TODO: delete after release
+  async started() {
+    await this.broker.waitForServices(['locations']);
+    const fishStockings: FishStocking[] = await this.actions.find({
+      query: {
+        $raw: `location->>'category' IS NULL`,
+      },
+    });
+    for (const fishStocking of fishStockings) {
+      try {
+        const cadastralId = fishStocking.location?.cadastral_id;
+        if (!cadastralId) continue;
+        const uetkObject: Location = await this.broker.call('locations.uetkSearchByCadastralId', {
+          cadastralId,
+        });
+        if (!uetkObject) continue;
+        const updatedLocation = {
+          ...uetkObject,
+          ...fishStocking.location,
+        };
+        await this.actions.update({
+          id: fishStocking.id,
+          location: updatedLocation,
+        });
+      } catch (e) {
+        continue;
+      }
     }
   }
 }
