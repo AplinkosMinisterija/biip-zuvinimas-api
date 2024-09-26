@@ -1626,4 +1626,12 @@ export default class FishStockingsService extends moleculer.Service {
       );
     }
   }
+
+  //TODO: delete after release
+  async started() {
+    // const fishStockings = await this.getEntities(null);
+    // for (const fishStocking of fishStockings) {
+    //   const cadastralId = fishStockings.location.cadastral_id;
+    // }
+  }
 }

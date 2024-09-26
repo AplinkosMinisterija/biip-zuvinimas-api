@@ -105,6 +105,42 @@ export default class LocationsService extends moleculer.Service {
   }
 
   @Action({
+    rest: 'GET /uetk/:cadastralId',
+    auth: RestrictionType.PUBLIC,
+    params: {
+      cadastralId: {
+        type: 'string',
+        optional: true,
+      },
+    },
+  })
+  async uetkSearchByCadastralId(
+    ctx: Context<
+      {
+        cadastralId: string;
+      },
+      UserAuthMeta
+    >,
+  ) {
+    const targetUrl = `${process.env.UETK_URL}/objects/search`;
+    const params: any = ctx.params;
+    const searchParams = new URLSearchParams(params);
+    const query = {
+      cadastralId: ctx.params.cadastralId,
+    };
+    searchParams.set('query', JSON.stringify(query));
+    const queryString = searchParams.toString();
+
+    const url = `${targetUrl}?${queryString}`;
+    try {
+      const data = await fetch(url).then((r) => r.json());
+      return this.mapUETKObject(ctx, data?.rows?.[0]);
+    } catch (error) {
+      throw new Error(`Failed to fetch: ${error.message}`);
+    }
+  }
+
+  @Action({
     rest: 'GET /',
     auth: RestrictionType.PUBLIC,
     params: {
@@ -130,7 +166,7 @@ export default class LocationsService extends moleculer.Service {
       const riverOrLake = await this.getRiverOrLakeFromPoint(geomJson);
       return riverOrLake;
     } else if (search) {
-      //TODO: after releaseing fronten this part can be deleted
+      //TODO: after releaseing frontend this part can be deleted
       const url =
         `${process.env.INTERNAL_API}/uetk/search?` + new URLSearchParams({ search, ...rest });
       const response = await fetch(url);
@@ -185,7 +221,7 @@ export default class LocationsService extends moleculer.Service {
             area: item.properties.st_area
               ? Math.round(item.properties.st_area / 100) / 100
               : undefined, //ha
-            length: item.properties.ilgis_uetk,
+            length: item.properties.ilgis_uetk, //km
             category: CategoryTranslates[item.properties.kategorija],
           };
         });
@@ -280,7 +316,7 @@ export default class LocationsService extends moleculer.Service {
       cadastral_id: item.cadastralId,
       municipality: municipalities?.rows?.find((m: any) => m.name === item.municipality),
       area: item.area ? Math.round(item.area / 100) / 100 : undefined, //ha
-      length: item.length,
+      length: item.length ? Math.round(item.length / 10) / 100 : undefined, //km
       category: item.categoryTranslate,
     };
   }
