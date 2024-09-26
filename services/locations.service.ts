@@ -6,6 +6,17 @@ import { Action, Method, Service } from 'moleculer-decorators';
 import { GeomFeatureCollection, coordinatesToGeometry } from '../modules/geometry';
 import { CommonFields, CommonPopulates, RestrictionType, Table } from '../types';
 import { UserAuthMeta } from './api.service';
+
+const CategoryTranslates: any = {
+  1: 'Upė',
+  2: 'Kanalas',
+  3: 'Natūralus ežeras',
+  4: 'Patvenktas ežeras',
+  5: 'Tvenkinys',
+  6: 'Nepratekamas dirbtinis paviršinis vandens telkinys',
+  7: 'Tarpinis vandens telkinys',
+};
+
 const getBox = (geom: GeomFeatureCollection, tolerance: number = 0.001) => {
   const coordinates: any = geom.features[0].geometry.coordinates;
   const topLeft = {
@@ -172,11 +183,10 @@ export default class LocationsService extends moleculer.Service {
             name: item.properties.pavadinimas,
             municipality: municipality,
             area: item.properties.st_area
-              ? (item.properties.st_area / 10000).toFixed(2)
-              : undefined,
+              ? Math.round(item.properties.st_area / 100) / 100
+              : undefined, //ha
             length: item.properties.ilgis_uetk,
-            category: item.properties.kategorija,
-            //TODO: category is a number, needs to be converted to string in lithuanian language
+            category: CategoryTranslates[item.properties.kategorija],
           };
         });
         return mappedList;
@@ -269,9 +279,9 @@ export default class LocationsService extends moleculer.Service {
       name: item.name,
       cadastral_id: item.cadastralId,
       municipality: municipalities?.rows?.find((m: any) => m.name === item.municipality),
-      area: item.area,
+      area: item.area ? Math.round(item.area / 100) / 100 : undefined, //ha
       length: item.length,
-      category: item.category,
+      category: item.categoryTranslate,
     };
   }
 
