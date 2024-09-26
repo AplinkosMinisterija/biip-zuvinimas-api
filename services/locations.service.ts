@@ -4,7 +4,7 @@ import { find, map } from 'lodash';
 import moleculer, { Context } from 'moleculer';
 import { Action, Method, Service } from 'moleculer-decorators';
 import { GeomFeatureCollection, coordinatesToGeometry } from '../modules/geometry';
-import { CommonFields, CommonPopulates, RestrictionType, Table } from '../types';
+import { RestrictionType } from '../types';
 import { UserAuthMeta } from './api.service';
 
 const CategoryTranslates: any = {
@@ -30,21 +30,17 @@ const getBox = (geom: GeomFeatureCollection, tolerance: number = 0.001) => {
   return `${topLeft.lng},${bottomRight.lat},${bottomRight.lng},${topLeft.lat}`;
 };
 
-interface Fields extends CommonFields {
-  cadastral_id: string;
+export interface Location {
   name: string;
+  area: number;
+  length: number;
+  category: string;
+  cadastral_id: string;
   municipality: {
     id: number;
     name: string;
   };
 }
-
-interface Populates extends CommonPopulates {}
-
-export type Location<
-  P extends keyof Populates = never,
-  F extends keyof (Fields & Populates) = keyof Fields,
-> = Table<Fields, Populates, P, F>;
 
 @Service({
   name: 'locations',
@@ -134,6 +130,7 @@ export default class LocationsService extends moleculer.Service {
     const url = `${targetUrl}?${queryString}`;
     try {
       const data = await fetch(url).then((r) => r.json());
+      if (!data?.rows?.[0]) return;
       return this.mapUETKObject(ctx, data?.rows?.[0]);
     } catch (error) {
       throw new Error(`Failed to fetch: ${error.message}`);
