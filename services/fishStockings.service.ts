@@ -745,7 +745,6 @@ export default class FishStockingsService extends moleculer.Service {
     },
   })
   async register(ctx: Context<any, UserAuthMeta>) {
-    console.log('register location', ctx.params.location);
     // Validate eventTime
     const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
     if (!timeBeforeReview) {
