@@ -83,14 +83,7 @@ export default class LocationsService extends moleculer.Service {
     const url = `${targetUrl}?${queryString}`;
     try {
       const data = await fetch(url).then((r) => r.json());
-      const municipalities = await this.actions.getMunicipalities(null, { parentCtx: ctx });
-      const rows = data?.rows?.map((item: any) => ({
-        name: item.name,
-        cadastral_id: item.cadastralId,
-        municipality: municipalities?.rows?.find((m: any) => m.name === item.municipality),
-        area: item.area,
-      }));
-
+      const rows = await Promise.all(data?.rows?.map((item: any) => this.mapUETKObject(ctx, item)));
       return {
         ...data,
         rows,
@@ -126,6 +119,7 @@ export default class LocationsService extends moleculer.Service {
       const riverOrLake = await this.getRiverOrLakeFromPoint(geomJson);
       return riverOrLake;
     } else if (search) {
+      //TODO: after releaseing fronten this part can be deleted
       const url =
         `${process.env.INTERNAL_API}/uetk/search?` + new URLSearchParams({ search, ...rest });
       const response = await fetch(url);
@@ -180,9 +174,11 @@ export default class LocationsService extends moleculer.Service {
             area: item.properties.st_area
               ? (item.properties.st_area / 10000).toFixed(2)
               : undefined,
+            length: item.properties.ilgis_uetk,
+            category: item.properties.kategorija,
+            //TODO: category is a number, needs to be converted to string in lithuanian language
           };
         });
-
         return mappedList;
       } catch (err) {
         throw new moleculer.Errors.ValidationError(err.message);
@@ -251,7 +247,6 @@ export default class LocationsService extends moleculer.Service {
     const municipalities = await this.actions.getMunicipalities(null, {
       parentCtx: ctx,
     });
-
     return find(municipalities?.rows, { id: ctx.params.id });
   }
 
@@ -265,6 +260,19 @@ export default class LocationsService extends moleculer.Service {
       parentCtx: ctx,
     });
     return find(municipalities?.rows, { name: ctx.params.name });
+  }
+
+  @Method
+  async mapUETKObject(ctx: Context, item: any) {
+    const municipalities = await this.actions.getMunicipalities(null, { parentCtx: ctx });
+    return {
+      name: item.name,
+      cadastral_id: item.cadastralId,
+      municipality: municipalities?.rows?.find((m: any) => m.name === item.municipality),
+      area: item.area,
+      length: item.length,
+      category: item.category,
+    };
   }
 
   @Method
