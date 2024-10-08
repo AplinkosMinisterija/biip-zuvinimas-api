@@ -245,7 +245,6 @@ export type FishStocking<
       phone: {
         type: 'string',
         required: false,
-        pattern: /^(86|\+3706)\d{7}$/,
       },
       reviewedBy: {
         type: 'number',
@@ -343,7 +342,6 @@ export type FishStocking<
           phone: {
             type: 'string',
             required: true,
-            pattern: /^(86|\+3706)\d{7}$/,
           },
           organization: 'string',
         },
@@ -469,7 +467,6 @@ export default class FishStockingsService extends moleculer.Service {
         // TODO: freelancer might not have phone number and currently it is not required for freelancer to enter phone number in FishStocking registration form.
         type: 'string',
         optional: true,
-        pattern: /^(86|\+3706)\d{7}$/,
       },
       waybillNo: 'string|optional',
       veterinaryApprovalNo: 'string|optional',
@@ -640,7 +637,6 @@ export default class FishStockingsService extends moleculer.Service {
         // TODO: freelancer might not have phone number and currently it is not required for freelancer to enter phone number in FishStocking registration form.
         type: 'string',
         optional: true,
-        pattern: /^(86|\+3706)\d{7}$/,
       },
       assignedTo: 'number|integer|convert',
       location: {
@@ -745,7 +741,6 @@ export default class FishStockingsService extends moleculer.Service {
         // TODO: freelancer might not have phone number and currently it is not required for freelancer to enter phone number in FishStocking registration form.
         type: 'string',
         optional: true,
-        pattern: /^(86|\+3706)\d{7}$/,
       },
       assignedTo: {
         type: 'number',
