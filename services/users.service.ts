@@ -385,6 +385,24 @@ export default class UsersService extends moleculer.Service {
   }
 
   @Action({
+    rest: 'POST /:id/impersonate',
+    auth: RestrictionType.ADMIN,
+    params: {
+      id: {
+        type: 'number',
+        convert: true,
+      },
+    },
+  })
+  async impersonate(ctx: Context<{ id: number }, UserAuthMeta>) {
+    const { id } = ctx.params;
+
+    const user: User = await ctx.call('users.resolve', { id });
+
+    return ctx.call('auth.users.impersonate', { id: user.authUser });
+  }
+
+  @Action({
     rest: 'GET /signatureUsers',
     auth: RestrictionType.USER,
     params: {
