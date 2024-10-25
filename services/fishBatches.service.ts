@@ -101,10 +101,10 @@ export default class FishBatchesService extends moleculer.Service {
         items: {
           type: 'object',
           properties: {
-            fishType: 'number|integer|positive',
-            fishAge: 'number|integer|positive',
-            amount: 'number|integer|positive',
-            weight: 'number|positive|optional',
+            fishType: 'number|integer|positive|convert',
+            fishAge: 'number|integer|positive|convert',
+            amount: 'number|integer|positive|convert',
+            weight: 'number|positive|optional|convert',
           },
         },
       },
