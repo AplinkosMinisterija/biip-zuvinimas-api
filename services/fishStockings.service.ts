@@ -2,7 +2,6 @@
 
 import { isEmpty, map } from 'lodash';
 import moleculer, { Context } from 'moleculer';
-import { DbContextParameters } from 'moleculer-db';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
 import ApiGateway from 'moleculer-web';
 import XLSX from 'xlsx';
@@ -37,6 +36,7 @@ import { AuthUserRole, UserAuthMeta } from './api.service';
 import { FishBatch } from './fishBatches.service';
 import { FishStockingPhoto } from './fishStockingPhotos.service';
 import { FishType } from './fishTypes.service';
+import { Location } from './locations.service';
 import { Setting } from './settings.service';
 import { Tenant } from './tenants.service';
 import { User } from './users.service';
@@ -67,17 +67,12 @@ interface Fields extends CommonFields {
     area: number;
     cadastral_id: string;
     name: string;
-    municipality: string;
-  };
-  location: {
-    name: string;
-    area: number;
-    cadastral_id: string;
     municipality: {
       id: number;
       name: string;
     };
   };
+  location: Location;
   geom: any;
   batches: Array<FishBatch['id']>;
   assignedTo: User['id'];
@@ -127,7 +122,6 @@ export type FishStocking<
   mixins: [
     DbConnection({
       createActions: {
-        update: false,
         create: false,
       },
     }),
@@ -166,11 +160,18 @@ export type FishStocking<
       fishOriginReservoir: {
         type: 'object',
         required: false,
+        raw: true,
         properties: {
           area: 'number',
           name: 'string',
           cadastral_id: 'string',
-          municipality: 'string',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number',
+              name: 'string',
+            },
+          },
         },
       },
       location: {
@@ -181,6 +182,9 @@ export type FishStocking<
           cadastral_id: 'string',
           name: 'string',
           municipality: 'object',
+          area: 'number|optional',
+          length: 'number|optional',
+          category: 'string',
         },
       },
       geom: {
@@ -214,6 +218,7 @@ export type FishStocking<
         virtual: true,
         default: () => [],
         async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
+          if (!ctx) return;
           const fishBatches: FishBatch[] = await ctx.call('fishBatches.find', {
             query: {
               fishStocking: {
@@ -353,6 +358,7 @@ export type FishStocking<
         virtual: true,
         default: () => [],
         async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
+          if (!ctx) return;
           const fishBatches: FishBatch[] = await ctx.call('fishBatches.find', {
             query: {
               fishStocking: {
@@ -378,6 +384,7 @@ export type FishStocking<
         //TODO: mandatory flag could be part of location object
         virtual: true,
         get: async ({ entity, ctx }: FieldHookCallback) => {
+          if (!ctx) return;
           const area = entity.location.area;
           if (area && area > 50) {
             return true;
@@ -396,15 +403,52 @@ export type FishStocking<
       ...COMMON_FIELDS,
     },
     scopes: {
+      profile(query: any, ctx: Context<null, UserAuthMeta>, params: any) {
+        if (ctx.meta) {
+          // adminai
+          if (
+            !ctx.meta.user &&
+            ctx.meta.authUser &&
+            (ctx.meta.authUser.type === AuthUserRole.ADMIN ||
+              ctx.meta.authUser.type === AuthUserRole.SUPER_ADMIN)
+          ) {
+            if (isEmpty(ctx.meta.authUser.municipalities)) {
+              throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
+                error: 'NoMunicipalityPermission',
+              });
+            }
+            return {
+              ...query,
+              $raw: `("location"::jsonb->'municipality'->'id')::int in (${ctx.meta.authUser.municipalities?.toString()})`,
+            };
+          }
+          // sesijoj imone
+          if (ctx.meta.profile && ctx.meta?.user) {
+            return {
+              ...query,
+              $raw: `(tenant_id = ${ctx.meta.profile} OR stocking_customer_id = ${ctx.meta.profile})`,
+            };
+          }
+
+          // sesijoj freelancer
+          if (!ctx.meta.profile && ctx.meta?.user) {
+            return {
+              ...query,
+              createdBy: ctx.meta.user.id,
+              tenant: { $exists: false },
+            };
+          }
+        }
+        return query;
+      },
       ...COMMON_SCOPES,
     },
-    defaultScopes: [...COMMON_DEFAULT_SCOPES],
+    defaultScopes: [...COMMON_DEFAULT_SCOPES, 'profile'],
     defaultPopulates: ['batches', 'status'],
   },
   hooks: {
     before: {
       create: ['parseGeomField', 'parseReviewLocationField'],
-      updateFishStocking: ['parseGeomField'],
       updateRegistration: ['parseGeomField'],
       register: ['parseGeomField'],
       review: ['parseReviewLocationField'],
@@ -419,6 +463,9 @@ export type FishStocking<
   actions: {
     remove: {
       auth: RestrictionType.ADMIN,
+    },
+    update: {
+      rest: null,
     },
   },
 })
@@ -440,7 +487,13 @@ export default class FishStockingsService extends moleculer.Service {
           area: 'number',
           name: 'string',
           cadastral_id: 'string',
-          municipality: 'string',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number',
+              name: 'string',
+            },
+          },
         },
       },
       location: 'object|optional',
@@ -645,6 +698,9 @@ export default class FishStockingsService extends moleculer.Service {
           cadastral_id: 'string',
           name: 'string',
           municipality: 'object',
+          area: 'number|optional|convert',
+          length: 'number|optional|convert',
+          category: 'string',
         },
       },
       geom: 'any',
@@ -668,10 +724,16 @@ export default class FishStockingsService extends moleculer.Service {
         type: 'object',
         optional: true,
         properties: {
-          area: 'number',
           name: 'string',
           cadastral_id: 'string',
-          municipality: 'string',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number',
+              name: 'string',
+            },
+          },
+          area: 'number|optional',
         },
       },
       tenant: 'number|integer|optional|optional',
@@ -700,7 +762,7 @@ export default class FishStockingsService extends moleculer.Service {
     // Assign tenant if necessary
     ctx.params.tenant = ctx.meta.profile;
 
-    const fishStocking: FishStocking = await this.createEntity(ctx);
+    const fishStocking: FishStocking = await this.createEntity(ctx, ctx.params);
 
     try {
       await ctx.call('fishBatches.createBatches', {
@@ -758,7 +820,16 @@ export default class FishStockingsService extends moleculer.Service {
         properties: {
           cadastral_id: 'string',
           name: 'string',
-          municipality: 'object',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number',
+              name: 'string',
+            },
+          },
+          area: 'number|optional|convert',
+          length: 'number|optional|convert',
+          category: 'string',
         },
       },
       batches: {
@@ -785,7 +856,13 @@ export default class FishStockingsService extends moleculer.Service {
           area: 'number',
           name: 'string',
           cadastral_id: 'string',
-          municipality: 'string',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number',
+              name: 'string',
+            },
+          },
         },
       },
       tenant: 'number|optional',
@@ -947,42 +1024,10 @@ export default class FishStockingsService extends moleculer.Service {
     rest: 'GET /recentLocations',
     auth: RestrictionType.USER,
   })
-  async getRecentLocations(ctx: Context<DbContextParameters, UserAuthMeta>) {
-    const { profile, user } = ctx.meta;
-    const adapter = await this.getAdapter(ctx);
-    const knex = adapter.client;
-    let response;
-    if (profile) {
-      response = await knex.raw(
-        `select distinct on ("location"::jsonb->'cadastral_id') "location", "id" from "fish_stockings" where "tenant_id" = ${profile} limit 5`,
-      );
-    } else if (user) {
-      response = await knex.raw(
-        `select distinct on ("location"::jsonb->'cadastral_id') "location", "id" from "fish_stockings" where "created_by" = ${user.id} limit 5`,
-      );
-    }
-    const data = [];
-    for (const row of response.rows) {
-      const id = row.id;
-      const geom = await ctx.call('fishStockings.getGeometryJson', {
-        id,
-      });
-      data.push({
-        ...row.location,
-        geom,
-      });
-    }
-    return data;
+  async getRecentLocations(ctx: Context<any, UserAuthMeta>) {
+    return await ctx.call('recentLocations.list');
   }
 
-  @Action()
-  async getLocations() {
-    const adapter = await this.getAdapter();
-    const knex = adapter.client;
-    return knex.raw(
-      `select distinct on ("location"::jsonb->'cadastral_id') "location" from "fish_stockings"`,
-    );
-  }
   @Action()
   async getLocationsCount(ctx: Context<any>) {
     const adapter = await this.getAdapter(ctx);
@@ -1022,6 +1067,7 @@ export default class FishStockingsService extends moleculer.Service {
           : fishStocking?.fishOriginReservoir;
       const date = fishStocking?.eventTime || '-';
       const municipality = fishStocking.location.municipality?.name || '-';
+      const category = fishStocking.location.category || '-';
       const waterBodyName = fishStocking.location?.name || '-';
       const waterBodyCode = fishStocking.location.cadastral_id || '-';
       const waybillNo = fishStocking.waybillNo || '-';
@@ -1035,6 +1081,7 @@ export default class FishStockingsService extends moleculer.Service {
           Rajonas: municipality,
           'Vandens telkinio pavadinimas': waterBodyName,
           'Telkinio kodas': waterBodyCode,
+          'Telkinio kategorija': category,
           'Žuvų, vėžių rūšis': batch.fishType?.label,
           Amžius: batch.fishAge?.label,
           'Planuojamas kiekis, vnt': batch.amount || 0,
@@ -1107,7 +1154,7 @@ export default class FishStockingsService extends moleculer.Service {
   async parseReviewLocationField(
     ctx: Context<{
       id?: number;
-      reviewLocation?: any;
+      reviewLocation?: { lat: number; lng: number };
     }>,
   ) {
     const { reviewLocation } = ctx.params;
@@ -1117,7 +1164,10 @@ export default class FishStockingsService extends moleculer.Service {
       return ctx;
     }
 
-    const reviewLocationGeom: any = coordinatesToGeometry(reviewLocation);
+    const reviewLocationGeom: any = coordinatesToGeometry({
+      x: reviewLocation.lng,
+      y: reviewLocation.lat,
+    });
     if (reviewLocationGeom?.features?.length) {
       const adapter = await this.getAdapter(ctx);
       const table = adapter.getTable();
@@ -1134,10 +1184,8 @@ export default class FishStockingsService extends moleculer.Service {
 
   @Method
   async beforeSelect(ctx: Context<any, UserAuthMeta>) {
-    const profilesQuery = await this.handleProfile(ctx.params.query || {}, ctx);
     let query = {
       ...ctx.params.query,
-      ...profilesQuery,
     };
     let filters;
 
@@ -1326,6 +1374,36 @@ export default class FishStockingsService extends moleculer.Service {
           permissive: true,
         },
       );
+    }
+  }
+
+  //TODO: delete after release
+  async started() {
+    await this.broker.waitForServices(['locations']);
+    const fishStockings: FishStocking[] = await this.actions.find({
+      query: {
+        $raw: `location->>'category' IS NULL`,
+      },
+    });
+    for (const fishStocking of fishStockings) {
+      try {
+        const cadastralId = fishStocking.location?.cadastral_id;
+        if (!cadastralId) continue;
+        const uetkObject: Location = await this.broker.call('locations.uetkSearchByCadastralId', {
+          cadastralId,
+        });
+        if (!uetkObject) continue;
+        const updatedLocation = {
+          ...uetkObject,
+          ...fishStocking.location,
+        };
+        await this.actions.update({
+          id: fishStocking.id,
+          location: updatedLocation,
+        });
+      } catch (e) {
+        continue;
+      }
     }
   }
 }
