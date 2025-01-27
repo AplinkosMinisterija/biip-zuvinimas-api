@@ -1390,13 +1390,9 @@ export default class FishStockingsService extends moleculer.Service {
           cadastralId,
         });
         if (!uetkObject) continue;
-        const updatedLocation = {
-          ...uetkObject,
-          ...fishStocking.location,
-        };
         await this.actions.update({
           id: fishStocking.id,
-          location: updatedLocation,
+          location: uetkObject,
         });
       } catch (e) {
         continue;
