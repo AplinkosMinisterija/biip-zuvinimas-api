@@ -218,7 +218,6 @@ export type FishStocking<
         virtual: true,
         default: () => [],
         async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
-          if (!ctx) return;
           const fishBatches: FishBatch[] = await ctx.call('fishBatches.find', {
             query: {
               fishStocking: {
@@ -358,7 +357,6 @@ export type FishStocking<
         virtual: true,
         default: () => [],
         async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
-          if (!ctx) return;
           const fishBatches: FishBatch[] = await ctx.call('fishBatches.find', {
             query: {
               fishStocking: {
@@ -384,7 +382,6 @@ export type FishStocking<
         //TODO: mandatory flag could be part of location object
         virtual: true,
         get: async ({ entity, ctx }: FieldHookCallback) => {
-          if (!ctx) return;
           const area = entity.location.area;
           if (area && area > 50) {
             return true;
