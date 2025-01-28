@@ -1379,28 +1379,28 @@ export default class FishStockingsService extends moleculer.Service {
     }
   }
 
-  // async started() {
-  //   await this.broker.waitForServices(['locations']);
-  //   const fishStockings: FishStocking[] = await this.actions.find({
-  //     query: {
-  //       $raw: `location->>'category' IS NULL`,
-  //     },
-  //   });
-  //   for (const fishStocking of fishStockings) {
-  //     try {
-  //       const cadastralId = fishStocking.location?.cadastral_id;
-  //       if (!cadastralId) continue;
-  //       const uetkObject: Location = await this.broker.call('locations.uetkSearchByCadastralId', {
-  //         cadastralId,
-  //       });
-  //       if (!uetkObject) continue;
-  //       await this.actions.update({
-  //         id: fishStocking.id,
-  //         location: uetkObject,
-  //       });
-  //     } catch (e) {
-  //       continue;
-  //     }
-  //   }
-  // }
+  async started() {
+    await this.broker.waitForServices(['locations']);
+    const fishStockings: FishStocking[] = await this.actions.find({
+      query: {
+        $raw: `location->>'category' IS NULL`,
+      },
+    });
+    for (const fishStocking of fishStockings) {
+      try {
+        const cadastralId = fishStocking.location?.cadastral_id;
+        if (!cadastralId) continue;
+        const uetkObject: Location = await this.broker.call('locations.uetkSearchByCadastralId', {
+          cadastralId,
+        });
+        if (!uetkObject) continue;
+        await this.actions.update({
+          id: fishStocking.id,
+          location: uetkObject,
+        });
+      } catch (e) {
+        continue;
+      }
+    }
+  }
 }
