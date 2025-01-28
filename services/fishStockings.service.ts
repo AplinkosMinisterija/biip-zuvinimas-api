@@ -379,7 +379,6 @@ export type FishStocking<
         },
       },
       mandatory: {
-        //TODO: mandatory flag could be part of location object
         virtual: true,
         readonly: true,
         default: () => [],

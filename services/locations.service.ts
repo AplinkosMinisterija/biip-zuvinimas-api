@@ -66,7 +66,7 @@ export default class LocationsService extends moleculer.Service {
       UserAuthMeta
     >,
   ) {
-    const targetUrl = `${process.env.UETK_URL}/objects`;
+    const targetUrl = `${process.env.INTERNAL_API}/uetk/objects`;
     const params: any = ctx.params;
     const searchParams = new URLSearchParams(params);
     const query = {
@@ -118,7 +118,7 @@ export default class LocationsService extends moleculer.Service {
       UserAuthMeta
     >,
   ) {
-    const targetUrl = `${process.env.UETK_URL}/objects`;
+    const targetUrl = `${process.env.INTERNAL_API}/uetk/objects`;
     const params: any = ctx.params;
     const searchParams = new URLSearchParams(params);
     const query = {
