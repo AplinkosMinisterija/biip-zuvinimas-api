@@ -1384,7 +1384,7 @@ export default class FishStockingsService extends moleculer.Service {
     );
     const fishStockings: FishStocking[] = await this.actions.find({
       query: {
-        fishOrigin: FishOrigin.CAUGHT,
+        $raw: `jsonb_typeof(fish_stockings.fish_origin_reservoir->'municipality') != 'object'`,
       },
       populate: [],
     });
@@ -1392,20 +1392,19 @@ export default class FishStockingsService extends moleculer.Service {
     for (const fishStocking of fishStockings) {
       try {
         const location = fishStocking.fishOriginReservoir;
-        if (!!location && typeof location.municipality === 'string') {
-          // @ts-ignore
-          const municipality = municipalities?.rows?.find((m) => m.name === location.municipality);
+        // @ts-ignore
+        const municipality = municipalities?.rows?.find((m) => m.name === location.municipality);
+        if (!municipality) continue;
 
-          if (!municipality) continue;
-          const stocking = pickBy(fishStocking, (value) => value !== null);
-          await this.actions.update({
-            ...stocking,
-            fishOriginReservoir: {
-              ...location,
-              municipality,
-            },
-          });
-        }
+        const stocking = pickBy(fishStocking, (value) => value !== null);
+        await this.actions.update({
+          ...stocking,
+          eventTime: stocking.eventTime.toISOString(),
+          fishOriginReservoir: {
+            ...location,
+            municipality,
+          },
+        });
       } catch (e) {
         continue;
       }
