@@ -37,6 +37,7 @@ import { FishBatch } from './fishBatches.service';
 import { FishStockingPhoto } from './fishStockingPhotos.service';
 import { FishType } from './fishTypes.service';
 import { Location } from './locations.service';
+import { MandatoryLocation } from './mandatoryLocations.service';
 import { Setting } from './settings.service';
 import { Tenant } from './tenants.service';
 import { User } from './users.service';
@@ -383,20 +384,17 @@ export type FishStocking<
         readonly: true,
         default: () => [],
         async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
-          return await Promise.all(
-            fishStockings.map(async (entity) => {
-              const area = entity.location.area;
-              if (area && area > 50) {
-                return true;
-              }
-              const mandatoryLocation = await ctx.call('mandatoryLocations.findOne', {
-                filter: {
-                  cadastral_id: entity.location.cadastral_id,
-                },
-              });
-              return !!mandatoryLocation;
-            }),
-          );
+          const mandatoryLocations: MandatoryLocation[] = await ctx.call('mandatoryLocations.find');
+          return fishStockings.map((entity) => {
+            const area = entity.location.area;
+            if (area && area > 50) {
+              return true;
+            }
+            const mandatoryLocation = mandatoryLocations?.find(
+              (ml) => ml.location?.cadastral_id === entity.location?.cadastral_id,
+            );
+            return !!mandatoryLocation;
+          });
         },
       },
       canceledAt: 'string',
@@ -1379,28 +1377,28 @@ export default class FishStockingsService extends moleculer.Service {
     }
   }
 
-  async started() {
-    await this.broker.waitForServices(['locations']);
-    const fishStockings: FishStocking[] = await this.actions.find({
-      query: {
-        $raw: `location->>'category' IS NULL`,
-      },
-    });
-    for (const fishStocking of fishStockings) {
-      try {
-        const cadastralId = fishStocking.location?.cadastral_id;
-        if (!cadastralId) continue;
-        const uetkObject: Location = await this.broker.call('locations.uetkSearchByCadastralId', {
-          cadastralId,
-        });
-        if (!uetkObject) continue;
-        await this.actions.update({
-          id: fishStocking.id,
-          location: uetkObject,
-        });
-      } catch (e) {
-        continue;
-      }
-    }
-  }
+  // async started() {
+  //   await this.broker.waitForServices(['locations']);
+  //   const fishStockings: FishStocking[] = await this.actions.find({
+  //     query: {
+  //       $raw: `location->>'category' IS NULL`,
+  //     },
+  //   });
+  //   for (const fishStocking of fishStockings) {
+  //     try {
+  //       const cadastralId = fishStocking.location?.cadastral_id;
+  //       if (!cadastralId) continue;
+  //       const uetkObject: Location = await this.broker.call('locations.uetkSearchByCadastralId', {
+  //         cadastralId,
+  //       });
+  //       if (!uetkObject) continue;
+  //       await this.actions.update({
+  //         id: fishStocking.id,
+  //         location: uetkObject,
+  //       });
+  //     } catch (e) {
+  //       continue;
+  //     }
+  //   }
+  // }
 }

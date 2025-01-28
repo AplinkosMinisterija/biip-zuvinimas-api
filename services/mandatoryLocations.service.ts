@@ -13,6 +13,7 @@ import {
   CommonPopulates,
   Table,
 } from '../types';
+import { Location } from './locations.service';
 
 const mandatoryAreas = [
   12230311, 15050130, 20050142, 10030094, 12250300, 12250132, 10050218, 41040030, 15050156,
@@ -25,12 +26,12 @@ const mandatoryAreas = [
 
 interface Fields extends CommonFields {
   id: number;
-  location: object;
+  location: Location;
 }
 
 interface Populates extends CommonPopulates {}
 
-export type FishType<
+export type MandatoryLocation<
   P extends keyof Populates = never,
   F extends keyof (Fields & Populates) = keyof Fields,
 > = Table<Fields, Populates, P, F>;
@@ -64,7 +65,7 @@ export type FishType<
     },
   },
 })
-export default class FishTypesService extends moleculer.Service {
+export default class MandatoryLocationsService extends moleculer.Service {
   @Method
   async beforeSelect(ctx: Context<any>) {
     if (!ctx.params.filter) {
