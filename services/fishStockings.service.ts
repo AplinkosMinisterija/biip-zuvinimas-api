@@ -36,7 +36,7 @@ import { AuthUserRole, UserAuthMeta } from './api.service';
 import { FishBatch } from './fishBatches.service';
 import { FishStockingPhoto } from './fishStockingPhotos.service';
 import { FishType } from './fishTypes.service';
-import { Location } from './locations.service';
+import { Location, Municipality } from './locations.service';
 import { MandatoryLocation } from './mandatoryLocations.service';
 import { Setting } from './settings.service';
 import { Tenant } from './tenants.service';
@@ -1377,28 +1377,33 @@ export default class FishStockingsService extends moleculer.Service {
     }
   }
 
-  // async started() {
-  //   await this.broker.waitForServices(['locations']);
-  //   const fishStockings: FishStocking[] = await this.actions.find({
-  //     query: {
-  //       $raw: `location->>'category' IS NULL`,
-  //     },
-  //   });
-  //   for (const fishStocking of fishStockings) {
-  //     try {
-  //       const cadastralId = fishStocking.location?.cadastral_id;
-  //       if (!cadastralId) continue;
-  //       const uetkObject: Location = await this.broker.call('locations.uetkSearchByCadastralId', {
-  //         cadastralId,
-  //       });
-  //       if (!uetkObject) continue;
-  //       await this.actions.update({
-  //         id: fishStocking.id,
-  //         location: uetkObject,
-  //       });
-  //     } catch (e) {
-  //       continue;
-  //     }
-  //   }
-  // }
+  async started() {
+    await this.broker.waitForServices(['locations']);
+    const municipalities: Municipality[] = await this.broker.call('locations.getMunicipalities');
+    const fishStockings: FishStocking[] = await this.actions.find({
+      query: {
+        fishOrigin: FishOrigin.CAUGHT,
+      },
+      populate: [],
+    });
+    for (const fishStocking of fishStockings) {
+      try {
+        const location = fishStocking.fishOriginReservoir;
+        if (!!location && typeof location.municipality === 'string') {
+          await this.actions.update({
+            id: fishStocking.id,
+            location: {
+              ...location,
+              municipality: municipalities.find((m) => {
+                //@ts-ignore
+                m.name === location.municipality;
+              }),
+            },
+          });
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+  }
 }

@@ -29,17 +29,17 @@ const getBox = (geom: GeomFeatureCollection, tolerance: number = 0.001) => {
   };
   return `${topLeft.lng},${bottomRight.lat},${bottomRight.lng},${topLeft.lat}`;
 };
-
+export interface Municipality {
+  id: number;
+  name: string;
+}
 export interface Location {
   name: string;
   area: number;
   length: number;
   category: string;
   cadastral_id: string;
-  municipality: {
-    id: number;
-    name: string;
-  };
+  municipality: Municipality;
 }
 
 @Service({
