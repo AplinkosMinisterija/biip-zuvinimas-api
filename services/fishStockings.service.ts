@@ -381,17 +381,23 @@ export type FishStocking<
       mandatory: {
         //TODO: mandatory flag could be part of location object
         virtual: true,
-        get: async ({ entity, ctx }: FieldHookCallback) => {
-          const area = entity.location.area;
-          if (area && area > 50) {
-            return true;
-          }
-          const mandatoryLocation = await ctx.call('mandatoryLocations.findOne', {
-            filter: {
-              cadastral_id: entity.location.cadastral_id,
-            },
-          });
-          return !!mandatoryLocation;
+        readonly: true,
+        default: () => [],
+        async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
+          return await Promise.all(
+            fishStockings.map(async (entity) => {
+              const area = entity.location.area;
+              if (area && area > 50) {
+                return true;
+              }
+              const mandatoryLocation = await ctx.call('mandatoryLocations.findOne', {
+                filter: {
+                  cadastral_id: entity.location.cadastral_id,
+                },
+              });
+              return !!mandatoryLocation;
+            }),
+          );
         },
       },
       canceledAt: 'string',
@@ -441,7 +447,7 @@ export type FishStocking<
       ...COMMON_SCOPES,
     },
     defaultScopes: [...COMMON_DEFAULT_SCOPES, 'profile'],
-    defaultPopulates: ['batches', 'status'],
+    defaultPopulates: ['batches', 'status', 'mandatory'],
   },
   hooks: {
     before: {
