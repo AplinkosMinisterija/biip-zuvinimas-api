@@ -1,6 +1,6 @@
 'use strict';
 
-import { isEmpty, map } from 'lodash';
+import { isEmpty, map, pickBy } from 'lodash';
 import moleculer, { Context } from 'moleculer';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
 import ApiGateway from 'moleculer-web';
@@ -1379,25 +1379,30 @@ export default class FishStockingsService extends moleculer.Service {
 
   async started() {
     await this.broker.waitForServices(['locations']);
-    const municipalities: Municipality[] = await this.broker.call('locations.getMunicipalities');
+    const municipalities: { rows: Municipality[] } = await this.broker.call(
+      'locations.getMunicipalities',
+    );
     const fishStockings: FishStocking[] = await this.actions.find({
       query: {
         fishOrigin: FishOrigin.CAUGHT,
       },
       populate: [],
     });
+
     for (const fishStocking of fishStockings) {
       try {
         const location = fishStocking.fishOriginReservoir;
         if (!!location && typeof location.municipality === 'string') {
+          // @ts-ignore
+          const municipality = municipalities?.rows?.find((m) => m.name === location.municipality);
+
+          if (!municipality) continue;
+          const stocking = pickBy(fishStocking, (value) => value !== null);
           await this.actions.update({
-            id: fishStocking.id,
-            location: {
+            ...stocking,
+            fishOriginReservoir: {
               ...location,
-              municipality: municipalities.find((m) => {
-                //@ts-ignore
-                m.name === location.municipality;
-              }),
+              municipality,
             },
           });
         }
