@@ -106,7 +106,6 @@ export default class LocationsService extends moleculer.Service {
     params: {
       cadastralId: {
         type: 'string',
-        optional: true,
       },
     },
   })
