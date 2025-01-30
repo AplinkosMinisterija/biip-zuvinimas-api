@@ -52,7 +52,6 @@ export interface RecentLocation {
       fishStockingId: {
         type: 'number',
         columnType: 'integer',
-        columnName: 'fishStockingId',
         required: true,
         immutable: true,
         hidden: 'byDefault',

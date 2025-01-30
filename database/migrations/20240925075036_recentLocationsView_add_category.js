@@ -36,7 +36,7 @@ exports.down = function (knex) {
         location->>'municipality' AS municipality,
         "tenant_id",
         "created_by" AS user_id,
-        "id" AS "fishStockingId",
+        "id" AS "fish_stocking_id",
         "event_time"
     FROM fish_stockings
     ORDER BY location->>'cadastral_id', "user_id", "tenant_id", "event_time" DESC;

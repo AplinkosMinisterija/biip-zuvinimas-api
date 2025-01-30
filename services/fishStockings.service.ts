@@ -404,40 +404,39 @@ export type FishStocking<
     },
     scopes: {
       profile(query: any, ctx: Context<null, UserAuthMeta>, params: any) {
-        if (ctx.meta) {
-          // adminai
-          if (
-            !ctx.meta.user &&
-            ctx.meta.authUser &&
-            (ctx.meta.authUser.type === AuthUserRole.ADMIN ||
-              ctx.meta.authUser.type === AuthUserRole.SUPER_ADMIN)
-          ) {
-            if (isEmpty(ctx.meta.authUser.municipalities)) {
-              throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
-                error: 'NoMunicipalityPermission',
-              });
-            }
-            return {
-              ...query,
-              $raw: `("location"::jsonb->'municipality'->'id')::int in (${ctx.meta.authUser.municipalities?.toString()})`,
-            };
+        if (!ctx.meta) return;
+        // adminai
+        if (
+          !ctx.meta.user &&
+          ctx.meta.authUser &&
+          (ctx.meta.authUser.type === AuthUserRole.ADMIN ||
+            ctx.meta.authUser.type === AuthUserRole.SUPER_ADMIN)
+        ) {
+          if (isEmpty(ctx.meta.authUser.municipalities)) {
+            throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
+              error: 'NoMunicipalityPermission',
+            });
           }
-          // sesijoj imone
-          if (ctx.meta.profile && ctx.meta?.user) {
-            return {
-              ...query,
-              $raw: `(tenant_id = ${ctx.meta.profile} OR stocking_customer_id = ${ctx.meta.profile})`,
-            };
-          }
+          return {
+            ...query,
+            $raw: `("location"::jsonb->'municipality'->'id')::int in (${ctx.meta.authUser.municipalities?.toString()})`,
+          };
+        }
+        // sesijoj imone
+        if (ctx.meta.profile && ctx.meta?.user) {
+          return {
+            ...query,
+            $raw: `(tenant_id = ${ctx.meta.profile} OR stocking_customer_id = ${ctx.meta.profile})`,
+          };
+        }
 
-          // sesijoj freelancer
-          if (!ctx.meta.profile && ctx.meta?.user) {
-            return {
-              ...query,
-              createdBy: ctx.meta.user.id,
-              tenant: { $exists: false },
-            };
-          }
+        // sesijoj freelancer
+        if (!ctx.meta.profile && ctx.meta?.user) {
+          return {
+            ...query,
+            createdBy: ctx.meta.user.id,
+            tenant: { $exists: false },
+          };
         }
         return query;
       },
