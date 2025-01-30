@@ -27,14 +27,24 @@ const uetkStatisticsParams = {
   year: 'number|convert|optional',
   cadastralId: 'string|optional',
 };
+type StatsByFishAge = {
+  [id: string]: {
+    count: number;
+    fishAge: {
+      id: number;
+      label: string;
+    };
+  };
+};
 
-type StatsById = {
+type StatsByFish = {
   [id: string]: {
     count: number;
     fishType: {
       id: number;
       label: string;
     };
+    byAge: StatsByFishAge;
   };
 };
 
@@ -44,7 +54,7 @@ type StatsByYear = {
 
 type StatsByCadastralId = {
   count: number;
-  byFish?: StatsById;
+  byFish?: StatsByFish;
   byYear?: StatsByYear;
 };
 
@@ -58,15 +68,39 @@ type BatchesById = {
   [id: string]: Batches;
 };
 
+const getByAge = (value: CompletedFishBatch) => {
+  const age = value.fish_age;
+  return {
+    count: value.count,
+    fishAge: {
+      id: age.id,
+      label: age.label,
+    },
+  };
+};
+
 const getByFish = (batches: Batches) => {
   return batches?.reduce(
-    (aggregate, value) => {
+    (aggregate: StatsByCadastralId, value: CompletedFishBatch) => {
       aggregate.count += value.count;
       let fishTypeData = aggregate.byFish[value.fish_type.id];
+      const age = value.fish_age;
       if (fishTypeData) {
         fishTypeData.count += value.count;
+        const fishTypeDataAge = fishTypeData.byAge[age.id];
+        if (fishTypeDataAge) {
+          fishTypeData.byAge[age.id].count += value.count;
+        } else {
+          fishTypeData.byAge[age.id] = getByAge(value);
+        }
       } else {
-        fishTypeData = { count: value.count, fishType: value.fish_type };
+        fishTypeData = {
+          count: value.count,
+          fishType: value.fish_type,
+          byAge: {
+            [age.id]: getByAge(value),
+          },
+        };
       }
       aggregate.byFish[value.fish_type.id] = fishTypeData;
       return aggregate;
@@ -99,7 +133,7 @@ const getCount = (batches: Batches) => {
 @Service({
   name: 'public',
 })
-export default class FishAgesService extends moleculer.Service {
+export default class PublicService extends moleculer.Service {
   @Action({
     rest: 'GET /fishStockings',
     auth: RestrictionType.PUBLIC,

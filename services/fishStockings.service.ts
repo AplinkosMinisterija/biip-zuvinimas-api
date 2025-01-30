@@ -2,13 +2,12 @@
 
 import { isEmpty, map } from 'lodash';
 import moleculer, { Context } from 'moleculer';
-import { DbContextParameters } from 'moleculer-db';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
+import PostgisMixin from 'moleculer-postgis';
 import ApiGateway from 'moleculer-web';
 import XLSX from 'xlsx';
 import DbConnection from '../mixins/database.mixin';
-import GeometriesMixin from '../mixins/geometries.mixin';
-import { GeomFeatureCollection, coordinatesToGeometry, geometryToGeom } from '../modules/geometry';
+import { coordinatesToGeometry } from '../modules/geometry';
 import {
   COMMON_DEFAULT_SCOPES,
   COMMON_FIELDS,
@@ -37,6 +36,8 @@ import { AuthUserRole, UserAuthMeta } from './api.service';
 import { FishBatch } from './fishBatches.service';
 import { FishStockingPhoto } from './fishStockingPhotos.service';
 import { FishType } from './fishTypes.service';
+import { Location } from './locations.service';
+import { MandatoryLocation } from './mandatoryLocations.service';
 import { Setting } from './settings.service';
 import { Tenant } from './tenants.service';
 import { User } from './users.service';
@@ -67,17 +68,12 @@ interface Fields extends CommonFields {
     area: number;
     cadastral_id: string;
     name: string;
-    municipality: string;
-  };
-  location: {
-    name: string;
-    area: number;
-    cadastral_id: string;
     municipality: {
       id: number;
       name: string;
     };
   };
+  location: Location;
   geom: any;
   batches: Array<FishBatch['id']>;
   assignedTo: User['id'];
@@ -127,11 +123,12 @@ export type FishStocking<
   mixins: [
     DbConnection({
       createActions: {
-        update: false,
         create: false,
       },
     }),
-    GeometriesMixin,
+    PostgisMixin({
+      srid: 3346,
+    }),
   ],
   settings: {
     fields: {
@@ -166,11 +163,18 @@ export type FishStocking<
       fishOriginReservoir: {
         type: 'object',
         required: false,
+        raw: true,
         properties: {
           area: 'number',
           name: 'string',
           cadastral_id: 'string',
-          municipality: 'string',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number',
+              name: 'string',
+            },
+          },
         },
       },
       location: {
@@ -181,19 +185,15 @@ export type FishStocking<
           cadastral_id: 'string',
           name: 'string',
           municipality: 'object',
+          area: 'number|optional',
+          length: 'number|optional',
+          category: 'string',
         },
       },
       geom: {
         type: 'any',
-        raw: true,
-        populate(ctx: any, _values: any, fishStockings: FishStocking[]) {
-          return Promise.all(
-            fishStockings.map((fishStocking) => {
-              return ctx.call('fishStockings.getGeometryJson', {
-                id: fishStocking.id,
-              });
-            }),
-          );
+        geom: {
+          type: 'geom',
         },
       },
       coordinates: {
@@ -257,17 +257,9 @@ export type FishStocking<
       },
       reviewLocation: {
         type: 'any',
-        raw: true,
-        populate(ctx: any, _values: any, fishStockings: FishStocking[]) {
-          return Promise.all(
-            fishStockings.map((fishStocking) => {
-              return ctx.call('fishStockings.getGeometryJson', {
-                field: 'reviewLocation',
-                asField: 'reviewLocation',
-                id: fishStocking.id,
-              });
-            }),
-          );
+        columnName: 'reviewLocation',
+        geom: {
+          type: 'geom',
         },
       },
       reviewTime: 'date',
@@ -375,19 +367,21 @@ export type FishStocking<
         },
       },
       mandatory: {
-        //TODO: mandatory flag could be part of location object
         virtual: true,
-        get: async ({ entity, ctx }: FieldHookCallback) => {
-          const area = entity.location.area;
-          if (area && area > 50) {
-            return true;
-          }
-          const mandatoryLocation = await ctx.call('mandatoryLocations.findOne', {
-            filter: {
-              cadastral_id: entity.location.cadastral_id,
-            },
+        readonly: true,
+        default: () => [],
+        async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
+          const mandatoryLocations: MandatoryLocation[] = await ctx.call('mandatoryLocations.find');
+          return fishStockings.map((entity) => {
+            const area = entity.location.area;
+            if (area && area > 50) {
+              return true;
+            }
+            const mandatoryLocation = mandatoryLocations?.find(
+              (ml) => ml.location?.cadastral_id === entity.location?.cadastral_id,
+            );
+            return !!mandatoryLocation;
           });
-          return !!mandatoryLocation;
         },
       },
       canceledAt: 'string',
@@ -396,17 +390,51 @@ export type FishStocking<
       ...COMMON_FIELDS,
     },
     scopes: {
+      profile(query: any, ctx: Context<null, UserAuthMeta>, params: any) {
+        if (!ctx.meta) return;
+        // adminai
+        if (
+          !ctx.meta.user &&
+          ctx.meta.authUser &&
+          (ctx.meta.authUser.type === AuthUserRole.ADMIN ||
+            ctx.meta.authUser.type === AuthUserRole.SUPER_ADMIN)
+        ) {
+          if (isEmpty(ctx.meta.authUser.municipalities)) {
+            throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
+              error: 'NoMunicipalityPermission',
+            });
+          }
+          return {
+            ...query,
+            $raw: `("location"::jsonb->'municipality'->'id')::int in (${ctx.meta.authUser.municipalities?.toString()})`,
+          };
+        }
+        // sesijoj imone
+        if (ctx.meta.profile && ctx.meta?.user) {
+          return {
+            ...query,
+            $or: [{ tenant: ctx.meta.profile }, { stockingCustomer: ctx.meta.profile }],
+          };
+        }
+
+        // sesijoj freelancer
+        if (!ctx.meta.profile && ctx.meta?.user) {
+          return {
+            ...query,
+            createdBy: ctx.meta.user.id,
+            tenant: { $exists: false },
+          };
+        }
+        return query;
+      },
       ...COMMON_SCOPES,
     },
-    defaultScopes: [...COMMON_DEFAULT_SCOPES],
-    defaultPopulates: ['batches', 'status'],
+    defaultScopes: [...COMMON_DEFAULT_SCOPES, 'profile'],
+    defaultPopulates: ['batches', 'status', 'mandatory'],
   },
   hooks: {
     before: {
-      create: ['parseGeomField', 'parseReviewLocationField'],
-      updateFishStocking: ['parseGeomField'],
-      updateRegistration: ['parseGeomField'],
-      register: ['parseGeomField'],
+      create: ['parseReviewLocationField'],
       review: ['parseReviewLocationField'],
       list: ['beforeSelect', 'handleSort'],
       find: ['beforeSelect', 'handleSort'],
@@ -419,6 +447,9 @@ export type FishStocking<
   actions: {
     remove: {
       auth: RestrictionType.ADMIN,
+    },
+    update: {
+      rest: null,
     },
   },
 })
@@ -440,7 +471,13 @@ export default class FishStockingsService extends moleculer.Service {
           area: 'number',
           name: 'string',
           cadastral_id: 'string',
-          municipality: 'string',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number',
+              name: 'string',
+            },
+          },
         },
       },
       location: 'object|optional',
@@ -645,6 +682,9 @@ export default class FishStockingsService extends moleculer.Service {
           cadastral_id: 'string',
           name: 'string',
           municipality: 'object',
+          area: 'number|optional|convert',
+          length: 'number|optional|convert',
+          category: 'string',
         },
       },
       geom: 'any',
@@ -668,10 +708,16 @@ export default class FishStockingsService extends moleculer.Service {
         type: 'object',
         optional: true,
         properties: {
-          area: 'number',
           name: 'string',
           cadastral_id: 'string',
-          municipality: 'string',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number',
+              name: 'string',
+            },
+          },
+          area: 'number|optional',
         },
       },
       tenant: 'number|integer|optional|optional',
@@ -700,7 +746,7 @@ export default class FishStockingsService extends moleculer.Service {
     // Assign tenant if necessary
     ctx.params.tenant = ctx.meta.profile;
 
-    const fishStocking: FishStocking = await this.createEntity(ctx);
+    const fishStocking: FishStocking = await this.createEntity(ctx, ctx.params);
 
     try {
       await ctx.call('fishBatches.createBatches', {
@@ -758,7 +804,16 @@ export default class FishStockingsService extends moleculer.Service {
         properties: {
           cadastral_id: 'string',
           name: 'string',
-          municipality: 'object',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number',
+              name: 'string',
+            },
+          },
+          area: 'number|optional|convert',
+          length: 'number|optional|convert',
+          category: 'string',
         },
       },
       batches: {
@@ -785,7 +840,13 @@ export default class FishStockingsService extends moleculer.Service {
           area: 'number',
           name: 'string',
           cadastral_id: 'string',
-          municipality: 'string',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number',
+              name: 'string',
+            },
+          },
         },
       },
       tenant: 'number|optional',
@@ -947,42 +1008,10 @@ export default class FishStockingsService extends moleculer.Service {
     rest: 'GET /recentLocations',
     auth: RestrictionType.USER,
   })
-  async getRecentLocations(ctx: Context<DbContextParameters, UserAuthMeta>) {
-    const { profile, user } = ctx.meta;
-    const adapter = await this.getAdapter(ctx);
-    const knex = adapter.client;
-    let response;
-    if (profile) {
-      response = await knex.raw(
-        `select distinct on ("location"::jsonb->'cadastral_id') "location", "id" from "fish_stockings" where "tenant_id" = ${profile} limit 5`,
-      );
-    } else if (user) {
-      response = await knex.raw(
-        `select distinct on ("location"::jsonb->'cadastral_id') "location", "id" from "fish_stockings" where "created_by" = ${user.id} limit 5`,
-      );
-    }
-    const data = [];
-    for (const row of response.rows) {
-      const id = row.id;
-      const geom = await ctx.call('fishStockings.getGeometryJson', {
-        id,
-      });
-      data.push({
-        ...row.location,
-        geom,
-      });
-    }
-    return data;
+  async getRecentLocations(ctx: Context<any, UserAuthMeta>) {
+    return await ctx.call('recentLocations.list');
   }
 
-  @Action()
-  async getLocations() {
-    const adapter = await this.getAdapter();
-    const knex = adapter.client;
-    return knex.raw(
-      `select distinct on ("location"::jsonb->'cadastral_id') "location" from "fish_stockings"`,
-    );
-  }
   @Action()
   async getLocationsCount(ctx: Context<any>) {
     const adapter = await this.getAdapter(ctx);
@@ -1022,6 +1051,7 @@ export default class FishStockingsService extends moleculer.Service {
           : fishStocking?.fishOriginReservoir;
       const date = fishStocking?.eventTime || '-';
       const municipality = fishStocking.location.municipality?.name || '-';
+      const category = fishStocking.location.category || '-';
       const waterBodyName = fishStocking.location?.name || '-';
       const waterBodyCode = fishStocking.location.cadastral_id || '-';
       const waybillNo = fishStocking.waybillNo || '-';
@@ -1035,6 +1065,7 @@ export default class FishStockingsService extends moleculer.Service {
           Rajonas: municipality,
           'Vandens telkinio pavadinimas': waterBodyName,
           'Telkinio kodas': waterBodyCode,
+          'Telkinio kategorija': category,
           'Žuvų, vėžių rūšis': batch.fishType?.label,
           Amžius: batch.fishAge?.label,
           'Planuojamas kiekis, vnt': batch.amount || 0,
@@ -1074,40 +1105,10 @@ export default class FishStockingsService extends moleculer.Service {
   }
 
   @Method
-  async parseGeomField(
-    ctx: Context<{
-      id?: number;
-      geom?: GeomFeatureCollection;
-    }>,
-  ) {
-    const { geom, id } = ctx.params;
-
-    if (geom?.features?.length) {
-      const adapter = await this.getAdapter(ctx);
-      const table = adapter.getTable();
-      try {
-        const geomItem = geom.features[0];
-        const value = geometryToGeom(geomItem.geometry);
-        ctx.params.geom = table.client.raw(`ST_GeomFromText(${value},3346)`);
-      } catch (err) {
-        throw new moleculer.Errors.ValidationError(err.message);
-      }
-    } else if (id) {
-      const fishStocking: FishStocking = await ctx.call('fishStockings.resolve', { id });
-      if (!fishStocking.geom) {
-        throw new moleculer.Errors.ValidationError('No geometry');
-      }
-    } else {
-      throw new moleculer.Errors.ValidationError('Invalid geometry');
-    }
-    return ctx;
-  }
-
-  @Method
   async parseReviewLocationField(
     ctx: Context<{
       id?: number;
-      reviewLocation?: any;
+      reviewLocation?: { lat: number; lng: number };
     }>,
   ) {
     const { reviewLocation } = ctx.params;
@@ -1117,27 +1118,20 @@ export default class FishStockingsService extends moleculer.Service {
       return ctx;
     }
 
-    const reviewLocationGeom: any = coordinatesToGeometry(reviewLocation);
+    const reviewLocationGeom: any = coordinatesToGeometry({
+      x: reviewLocation.lng,
+      y: reviewLocation.lat,
+    });
     if (reviewLocationGeom?.features?.length) {
-      const adapter = await this.getAdapter(ctx);
-      const table = adapter.getTable();
-      try {
-        const geomItem = reviewLocationGeom.features[0];
-        const value = geometryToGeom(geomItem.geometry);
-        ctx.params.reviewLocation = table.client.raw(`ST_GeomFromText(${value},3346)`);
-      } catch (err) {
-        throw new moleculer.Errors.ValidationError(err.message);
-      }
+      ctx.params.reviewLocation = reviewLocationGeom;
     }
     return ctx;
   }
 
   @Method
   async beforeSelect(ctx: Context<any, UserAuthMeta>) {
-    const profilesQuery = await this.handleProfile(ctx.params.query || {}, ctx);
     let query = {
       ...ctx.params.query,
-      ...profilesQuery,
     };
     let filters;
 

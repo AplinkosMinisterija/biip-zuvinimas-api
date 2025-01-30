@@ -1,11 +1,22 @@
 'use strict';
 
-import { find, isEmpty, map } from 'lodash';
+import { find, map } from 'lodash';
 import moleculer, { Context } from 'moleculer';
 import { Action, Method, Service } from 'moleculer-decorators';
 import { GeomFeatureCollection, coordinatesToGeometry } from '../modules/geometry';
-import { CommonFields, CommonPopulates, RestrictionType, Table } from '../types';
+import { RestrictionType } from '../types';
 import { UserAuthMeta } from './api.service';
+
+const CategoryTranslates: any = {
+  1: 'Upė',
+  2: 'Kanalas',
+  3: 'Natūralus ežeras',
+  4: 'Patvenktas ežeras',
+  5: 'Tvenkinys',
+  6: 'Nepratekamas dirbtinis paviršinis vandens telkinys',
+  7: 'Tarpinis vandens telkinys',
+};
+
 const getBox = (geom: GeomFeatureCollection, tolerance: number = 0.001) => {
   const coordinates: any = geom.features[0].geometry.coordinates;
   const topLeft = {
@@ -18,24 +29,113 @@ const getBox = (geom: GeomFeatureCollection, tolerance: number = 0.001) => {
   };
   return `${topLeft.lng},${bottomRight.lat},${bottomRight.lng},${topLeft.lat}`;
 };
-
-interface Fields extends CommonFields {
-  cadastral_id: string;
+export interface Municipality {
+  id: number;
   name: string;
-  municipality: string;
 }
-
-interface Populates extends CommonPopulates {}
-
-export type Location<
-  P extends keyof Populates = never,
-  F extends keyof (Fields & Populates) = keyof Fields,
-> = Table<Fields, Populates, P, F>;
+export interface Location {
+  name: string;
+  area: number;
+  length: number;
+  category: string;
+  cadastral_id: string;
+  municipality: Municipality;
+}
 
 @Service({
   name: 'locations',
 })
 export default class LocationsService extends moleculer.Service {
+  @Action({
+    rest: 'GET /uetk',
+    auth: RestrictionType.PUBLIC,
+    params: {
+      search: {
+        type: 'string',
+        optional: true,
+      },
+    },
+    cache: false,
+  })
+  async uetkSearch(
+    ctx: Context<
+      {
+        search?: string;
+        query: any;
+      },
+      UserAuthMeta
+    >,
+  ) {
+    const targetUrl = `${process.env.INTERNAL_API}/uetk/objects`;
+    const params: any = ctx.params;
+    const searchParams = new URLSearchParams(params);
+    const query = {
+      category: {
+        $in: [
+          'RIVER',
+          'CANAL',
+          'INTERMEDIATE_WATER_BODY',
+          'TERRITORIAL_WATER_BODY',
+          'NATURAL_LAKE',
+          'PONDED_LAKE',
+          'POND',
+          'ISOLATED_WATER_BODY',
+        ],
+      },
+      ...(params.query || {}),
+    };
+    searchParams.set('query', JSON.stringify(query));
+    const queryString = searchParams.toString();
+
+    const url = `${targetUrl}?${queryString}`;
+    try {
+      const data = await fetch(url).then((r) => r.json());
+      const rows = await Promise.all(data?.rows?.map((item: any) => this.mapUETKObject(ctx, item)));
+      return {
+        ...data,
+        rows,
+      };
+    } catch (error) {
+      throw new Error(`Failed to fetch: ${error.message}`);
+    }
+  }
+
+  @Action({
+    rest: 'GET /uetk/:cadastralId',
+    auth: RestrictionType.PUBLIC,
+    params: {
+      cadastralId: {
+        type: 'string',
+      },
+    },
+  })
+  async uetkSearchByCadastralId(
+    ctx: Context<
+      {
+        cadastralId: string;
+      },
+      UserAuthMeta
+    >,
+  ) {
+    const targetUrl = `${process.env.INTERNAL_API}/uetk/objects`;
+    const params: any = ctx.params;
+    const searchParams = new URLSearchParams(params);
+    const query = {
+      cadastralId: ctx.params.cadastralId,
+    };
+    searchParams.set('query', JSON.stringify(query));
+    const queryString = searchParams.toString();
+
+    const url = `${targetUrl}?${queryString}`;
+    try {
+      const data = await fetch(url).then((r) => r.json());
+      if (!data?.rows?.[0]) return;
+      return this.mapUETKObject(ctx, data?.rows?.[0]);
+    } catch (error) {
+      throw new Error(`Failed to fetch: ${error.message}`);
+    }
+  }
+
   @Action({
     rest: 'GET /',
     auth: RestrictionType.PUBLIC,
@@ -62,9 +162,9 @@ export default class LocationsService extends moleculer.Service {
       const riverOrLake = await this.getRiverOrLakeFromPoint(geomJson);
       return riverOrLake;
     } else if (search) {
+      //TODO: after releaseing frontend this part can be deleted
       const url =
         `${process.env.INTERNAL_API}/uetk/search?` + new URLSearchParams({ search, ...rest });
-
       const response = await fetch(url);
 
       const data = await response.json();
@@ -87,21 +187,18 @@ export default class LocationsService extends moleculer.Service {
     }
   }
 
-  @Action()
-  async getLocationsByCadastralIds(ctx: Context<{ locations: string[] }>) {
-    const promises = map(ctx.params.locations, (location) =>
-      ctx.call('locations.search', { search: location }),
-    );
-
-    const result: any = await Promise.all(promises);
-
-    const data: Location[] = [];
-    for (const item of result) {
-      if (!isEmpty(item)) {
-        data.push(item[0]);
-      }
-    }
-    return data;
+  @Action({
+    rest: 'GET /municipalities/search',
+    params: {
+      geom: 'string|optional',
+    },
+    cache: {
+      ttl: 24 * 60 * 60,
+    },
+  })
+  async searchMunicipalitiesByGeom(ctx: Context<{ geom?: string }>) {
+    const geom: GeomFeatureCollection = JSON.parse(ctx.params.geom);
+    return this.getMunicipalityFromPoint(geom);
   }
 
   @Action({
@@ -149,7 +246,6 @@ export default class LocationsService extends moleculer.Service {
     const municipalities = await this.actions.getMunicipalities(null, {
       parentCtx: ctx,
     });
-
     return find(municipalities?.rows, { id: ctx.params.id });
   }
 
@@ -181,11 +277,12 @@ export default class LocationsService extends moleculer.Service {
             name: item.properties.pavadinimas,
             municipality: municipality,
             area: item.properties.st_area
-              ? (item.properties.st_area / 10000).toFixed(2)
-              : undefined,
+              ? Math.round(item.properties.st_area / 100) / 100
+              : undefined, //ha
+            length: item.properties.ilgis_uetk, //km
+            category: CategoryTranslates[item.properties.kategorija],
           };
         });
-
         return mappedList;
       } catch (err) {
         throw new moleculer.Errors.ValidationError(err.message);
@@ -193,6 +290,21 @@ export default class LocationsService extends moleculer.Service {
     } else {
       throw new moleculer.Errors.ValidationError('Invalid geometry');
     }
+  }
+
+  @Method
+  async mapUETKObject(ctx: Context, item: any) {
+    return {
+      name: item.name,
+      cadastral_id: item.cadastralId,
+      municipality: {
+        name: item.municipality,
+        id: item.municipalityCode,
+      },
+      area: item.area ? Math.round(item.area / 100) / 100 : undefined, //ha
+      length: item.length ? Math.round(item.length / 10) / 100 : undefined, //km
+      category: item.categoryTranslate,
+    };
   }
 
   @Method
@@ -207,7 +319,7 @@ export default class LocationsService extends moleculer.Service {
     const { features } = await data.json();
     return {
       id: Number(features[0]?.properties?.kodas),
-      name: features[0]?.properties?.pavadinimas,
+      name: features[0]?.properties?.pavadinimas || '',
     };
   }
 }
