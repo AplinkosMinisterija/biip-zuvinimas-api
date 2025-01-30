@@ -5,6 +5,7 @@ import { Method, Service } from 'moleculer-decorators';
 import DbConnection from '../mixins/database.mixin';
 import { RestrictionType } from '../types';
 import { UserAuthMeta } from './api.service';
+import { FishStocking } from './fishStockings.service';
 
 const mapItem = (data: RecentLocation) => {
   const { cadastralId, ...rest } = data;
@@ -61,14 +62,17 @@ export interface RecentLocation {
         raw: true,
         virtual: true,
         async populate(ctx: any, _values: any, recentLocations: RecentLocation[]) {
-          return Promise.all(
-            recentLocations.map(async (recentLocation) => {
-              return ctx.call('fishStockings.getGeometryJson', {
-                field: 'geom',
-                asField: 'geom',
-                id: recentLocation.fishStockingId,
-              });
-            }),
+          const ids = recentLocations?.map((recentLocation) => recentLocation.fishStockingId);
+          const fishStockings = await ctx.call('fishStockings.find', {
+            query: {
+              id: { $in: ids },
+            },
+            populate: ['geom'],
+          });
+          return recentLocations.map(
+            (recentLocation) =>
+              fishStockings.find((fs: FishStocking) => fs.id === recentLocation.fishStockingId)
+                ?.geom,
           );
         },
       },

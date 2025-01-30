@@ -3,11 +3,11 @@
 import { isEmpty, map } from 'lodash';
 import moleculer, { Context } from 'moleculer';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
+import PostgisMixin from 'moleculer-postgis';
 import ApiGateway from 'moleculer-web';
 import XLSX from 'xlsx';
 import DbConnection from '../mixins/database.mixin';
-import GeometriesMixin from '../mixins/geometries.mixin';
-import { GeomFeatureCollection, coordinatesToGeometry, geometryToGeom } from '../modules/geometry';
+import { coordinatesToGeometry } from '../modules/geometry';
 import {
   COMMON_DEFAULT_SCOPES,
   COMMON_FIELDS,
@@ -126,7 +126,9 @@ export type FishStocking<
         create: false,
       },
     }),
-    GeometriesMixin,
+    PostgisMixin({
+      srid: 3346,
+    }),
   ],
   settings: {
     fields: {
@@ -190,15 +192,8 @@ export type FishStocking<
       },
       geom: {
         type: 'any',
-        raw: true,
-        populate(ctx: any, _values: any, fishStockings: FishStocking[]) {
-          return Promise.all(
-            fishStockings.map((fishStocking) => {
-              return ctx.call('fishStockings.getGeometryJson', {
-                id: fishStocking.id,
-              });
-            }),
-          );
+        geom: {
+          type: 'geom',
         },
       },
       coordinates: {
@@ -262,17 +257,9 @@ export type FishStocking<
       },
       reviewLocation: {
         type: 'any',
-        raw: true,
-        populate(ctx: any, _values: any, fishStockings: FishStocking[]) {
-          return Promise.all(
-            fishStockings.map((fishStocking) => {
-              return ctx.call('fishStockings.getGeometryJson', {
-                field: 'reviewLocation',
-                asField: 'reviewLocation',
-                id: fishStocking.id,
-              });
-            }),
-          );
+        columnName: 'reviewLocation',
+        geom: {
+          type: 'geom',
         },
       },
       reviewTime: 'date',
@@ -426,7 +413,7 @@ export type FishStocking<
         if (ctx.meta.profile && ctx.meta?.user) {
           return {
             ...query,
-            $raw: `(tenant_id = ${ctx.meta.profile} OR stocking_customer_id = ${ctx.meta.profile})`,
+            $or: [{ tenant: ctx.meta.profile }, { stockingCustomer: ctx.meta.profile }],
           };
         }
 
@@ -447,9 +434,7 @@ export type FishStocking<
   },
   hooks: {
     before: {
-      create: ['parseGeomField', 'parseReviewLocationField'],
-      updateRegistration: ['parseGeomField'],
-      register: ['parseGeomField'],
+      create: ['parseReviewLocationField'],
       review: ['parseReviewLocationField'],
       list: ['beforeSelect', 'handleSort'],
       find: ['beforeSelect', 'handleSort'],
@@ -1120,36 +1105,6 @@ export default class FishStockingsService extends moleculer.Service {
   }
 
   @Method
-  async parseGeomField(
-    ctx: Context<{
-      id?: number;
-      geom?: GeomFeatureCollection;
-    }>,
-  ) {
-    const { geom, id } = ctx.params;
-
-    if (geom?.features?.length) {
-      const adapter = await this.getAdapter(ctx);
-      const table = adapter.getTable();
-      try {
-        const geomItem = geom.features[0];
-        const value = geometryToGeom(geomItem.geometry);
-        ctx.params.geom = table.client.raw(`ST_GeomFromText(${value},3346)`);
-      } catch (err) {
-        throw new moleculer.Errors.ValidationError(err.message);
-      }
-    } else if (id) {
-      const fishStocking: FishStocking = await ctx.call('fishStockings.resolve', { id });
-      if (!fishStocking.geom) {
-        throw new moleculer.Errors.ValidationError('No geometry');
-      }
-    } else {
-      throw new moleculer.Errors.ValidationError('Invalid geometry');
-    }
-    return ctx;
-  }
-
-  @Method
   async parseReviewLocationField(
     ctx: Context<{
       id?: number;
@@ -1168,15 +1123,7 @@ export default class FishStockingsService extends moleculer.Service {
       y: reviewLocation.lat,
     });
     if (reviewLocationGeom?.features?.length) {
-      const adapter = await this.getAdapter(ctx);
-      const table = adapter.getTable();
-      try {
-        const geomItem = reviewLocationGeom.features[0];
-        const value = geometryToGeom(geomItem.geometry);
-        ctx.params.reviewLocation = table.client.raw(`ST_GeomFromText(${value},3346)`);
-      } catch (err) {
-        throw new moleculer.Errors.ValidationError(err.message);
-      }
+      ctx.params.reviewLocation = reviewLocationGeom;
     }
     return ctx;
   }
