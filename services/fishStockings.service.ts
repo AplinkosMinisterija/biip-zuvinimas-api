@@ -1,6 +1,6 @@
 'use strict';
 
-import { isEmpty, map, pickBy } from 'lodash';
+import { isEmpty, map } from 'lodash';
 import moleculer, { Context } from 'moleculer';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
 import ApiGateway from 'moleculer-web';
@@ -36,7 +36,7 @@ import { AuthUserRole, UserAuthMeta } from './api.service';
 import { FishBatch } from './fishBatches.service';
 import { FishStockingPhoto } from './fishStockingPhotos.service';
 import { FishType } from './fishTypes.service';
-import { Location, Municipality } from './locations.service';
+import { Location } from './locations.service';
 import { MandatoryLocation } from './mandatoryLocations.service';
 import { Setting } from './settings.service';
 import { Tenant } from './tenants.service';
@@ -1373,41 +1373,6 @@ export default class FishStockingsService extends moleculer.Service {
           permissive: true,
         },
       );
-    }
-  }
-
-  async started() {
-    await this.broker.waitForServices(['locations']);
-    const municipalities: { rows: Municipality[] } = await this.broker.call(
-      'locations.getMunicipalities',
-    );
-    const fishStockings: FishStocking[] = await this.actions.find({
-      query: {
-        fishOrigin: 'CAUGHT',
-        $raw: `jsonb_typeof(fish_stockings.fish_origin_reservoir->'municipality') != 'object'`,
-      },
-      populate: [],
-    });
-
-    for (const fishStocking of fishStockings) {
-      try {
-        const location = fishStocking.fishOriginReservoir;
-        // @ts-ignore
-        const municipality = municipalities?.rows?.find((m) => m.name === location.municipality);
-        if (!municipality) continue;
-
-        const stocking = pickBy(fishStocking, (value) => value !== null);
-        await this.actions.update({
-          ...stocking,
-          eventTime: stocking.eventTime.toISOString(),
-          fishOriginReservoir: {
-            ...location,
-            municipality,
-          },
-        });
-      } catch (e) {
-        continue;
-      }
     }
   }
 }
