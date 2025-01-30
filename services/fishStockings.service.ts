@@ -1384,6 +1384,7 @@ export default class FishStockingsService extends moleculer.Service {
     );
     const fishStockings: FishStocking[] = await this.actions.find({
       query: {
+        fishOrigin: 'CAUGHT',
         $raw: `jsonb_typeof(fish_stockings.fish_origin_reservoir->'municipality') != 'object'`,
       },
       populate: [],
