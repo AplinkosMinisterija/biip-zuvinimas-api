@@ -436,7 +436,7 @@ export type FishStocking<
     before: {
       create: ['parseReviewLocationField'],
       review: ['parseReviewLocationField'],
-      list: ['beforeSelect', 'handleSort'],
+      list: ['beforeSelect'],
       find: ['beforeSelect', 'handleSort'],
       count: ['beforeSelect'],
       get: ['beforeSelect'],
