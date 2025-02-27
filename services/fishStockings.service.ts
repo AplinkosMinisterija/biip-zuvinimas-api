@@ -399,15 +399,24 @@ export type FishStocking<
           (ctx.meta.authUser.type === AuthUserRole.ADMIN ||
             ctx.meta.authUser.type === AuthUserRole.SUPER_ADMIN)
         ) {
-          if (isEmpty(ctx.meta.authUser.municipalities)) {
+          const municipalities = ctx.meta.authUser.municipalities;
+
+          if (isEmpty(municipalities)) {
             throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
               error: 'NoMunicipalityPermission',
             });
           }
-          return {
-            ...query,
-            $raw: `("location"::jsonb->'municipality'->'id')::int in (${ctx.meta.authUser.municipalities?.toString()})`,
+
+          query.municipalities = {
+            $raw: {
+              condition: `("location"::jsonb->'municipality'->'id')::int in  (${municipalities
+                .map((_: any) => '?')
+                .join(',')})`,
+              bindings: municipalities.map(Number),
+            },
           };
+
+          return query;
         }
         // sesijoj imone
         if (ctx.meta.profile && ctx.meta?.user) {
