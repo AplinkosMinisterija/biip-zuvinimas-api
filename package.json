@@ -57,6 +57,7 @@
     "typescript": "5.1.6"
   },
   "dependencies": {
+    "@aplinkosministerija/moleculer-accounts": "^1.6.0",
     "@moleculer/database": "github:ambrazasp/moleculerjs-database",
     "@moleculer/lab": "^0.6.4",
     "@r2d2bzh/moleculer-cron": "^0.1.4",
