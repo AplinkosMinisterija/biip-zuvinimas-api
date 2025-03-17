@@ -415,17 +415,9 @@ export type FishStocking<
             });
           }
 
-          query.$and ??= [];
+          query.location = { $and: query.location ? [query.location] : [] };
 
-          query.$and.push({
-            location: { 'municipality.id': { $in: municipalities.map(Number) } },
-          });
-
-          if (query.location) {
-            query.$and.push({ location: query.location });
-
-            delete query.location;
-          }
+          query.location.$and.push({ 'municipality.id': { $in: municipalities.map(Number) } });
 
           return query;
         }
