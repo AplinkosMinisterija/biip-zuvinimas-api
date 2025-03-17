@@ -1,5 +1,6 @@
 'use strict';
 
+import { DeepQueryMixin } from '@aplinkosministerija/moleculer-accounts';
 import { isEmpty, map } from 'lodash';
 import moleculer, { Context } from 'moleculer';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
@@ -129,6 +130,7 @@ export type FishStocking<
     PostgisMixin({
       srid: 3346,
     }),
+    DeepQueryMixin(),
   ],
   settings: {
     fields: {
@@ -184,7 +186,13 @@ export type FishStocking<
         properties: {
           cadastral_id: 'string',
           name: 'string',
-          municipality: 'object',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number',
+              name: 'string',
+            },
+          },
           area: 'number|optional',
           length: 'number|optional',
           category: 'string',
@@ -391,7 +399,7 @@ export type FishStocking<
     },
     scopes: {
       profile(query: any, ctx: Context<null, UserAuthMeta>, params: any) {
-        if (!ctx.meta) return;
+        if (!ctx.meta) return query;
         // adminai
         if (
           !ctx.meta.user &&
@@ -407,14 +415,9 @@ export type FishStocking<
             });
           }
 
-          query.municipalities = {
-            $raw: {
-              condition: `("location"::jsonb->'municipality'->'id')::int in  (${municipalities
-                .map((_: any) => '?')
-                .join(',')})`,
-              bindings: municipalities.map(Number),
-            },
-          };
+          query.location = { $and: query.location ? [query.location] : [] };
+
+          query.location.$and.push({ 'municipality.id': { $in: municipalities.map(Number) } });
 
           return query;
         }
