@@ -208,11 +208,34 @@ export type FishStocking<
         type: 'any',
         virtual: true,
         hidden: 'byDefault',
-        get: async ({ entity, ctx }: FieldHookCallback) => {
-          return ctx.call('fishStockings.getWgsCoordinates', {
-            id: entity.id,
-          });
-        },
+        default: () => [],
+        async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
+          try {
+            const adapter = await this.getAdapter();
+            const ids = fishStockings.map((fishStocking) => fishStocking.id);
+
+            const results = await adapter.client.raw(
+                `SELECT id, ST_AsGeoJSON(ST_Transform(geom, 4326)) AS geojson 
+               FROM fish_stockings
+               WHERE id IN (${ids.join(',')})`
+            );
+
+            const coordinatesById = results.rows.reduce((acc: any, row: any) => {
+              acc[row.id] = JSON.parse(row.geojson).coordinates;
+              return acc;
+            }, {});
+
+            return fishStockings.map((fishStocking) =>
+                coordinatesById[fishStocking.id] || null
+            );
+          } catch (error) {
+            this.logger.error(
+                'Error populating WGS84 coordinates for fishStockings:',
+                error
+            );
+            return null;
+          }
+        }
       },
       batches: {
         // TODO: could be actual jsonb field instead of batches table. This would make selection and updates much easier.
