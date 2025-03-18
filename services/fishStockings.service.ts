@@ -195,7 +195,7 @@ export type FishStocking<
           },
           area: 'number|optional',
           length: 'number|optional',
-          category: 'string',
+          category: 'string|optional',
         },
       },
       geom: {
@@ -719,7 +719,7 @@ export default class FishStockingsService extends moleculer.Service {
           municipality: 'object',
           area: 'number|optional|convert',
           length: 'number|optional|convert',
-          category: 'string',
+          category: 'string|optional',
         },
       },
       geom: 'any',
@@ -848,7 +848,7 @@ export default class FishStockingsService extends moleculer.Service {
           },
           area: 'number|optional|convert',
           length: 'number|optional|convert',
-          category: 'string',
+          category: 'string|optional',
         },
       },
       batches: {
