@@ -608,12 +608,15 @@ export default class FishStockingsService extends moleculer.Service {
       }
     }
 
+    const { eventTime, canceledAt } = ctx.params;
+
     // Validate canceledAt time
     if (ctx.params.canceledAt) {
-      const eventTime: Date =
-        (ctx.params.eventTime && new Date(ctx.params.eventTime)) || existingFishStocking.eventTime;
-      const canceledAtTime = new Date(ctx.params.canceledAt);
-      if (eventTime.getTime() - canceledAtTime.getTime() <= 0) {
+      const time: Date =
+        (eventTime ? new Date(eventTime) : existingFishStocking.eventTime);
+      const canceledAtTime = new Date(canceledAt);
+
+      if (time.getTime() - canceledAtTime.getTime() <= 0) {
         throw new moleculer.Errors.ValidationError('Invalid "canceledAt" time');
       }
     }
@@ -983,7 +986,7 @@ export default class FishStockingsService extends moleculer.Service {
     ctx: Context<
       {
         id: number;
-        reviewLocation?: any;
+        reviewLocation?: {lat: number, lng: number};
         waybillNo?: string;
         veterinaryApprovalNo?: string;
         veterinaryApprovalOrderNo?: string;
@@ -1146,21 +1149,26 @@ export default class FishStockingsService extends moleculer.Service {
       reviewLocation?: { lat: number; lng: number };
     }>,
   ) {
-    const { reviewLocation } = ctx.params;
+    try {
+      const { reviewLocation } = ctx.params;
 
-    if (isEmpty(reviewLocation)) {
-      ctx.params.reviewLocation = null;
+      if (isEmpty(reviewLocation)) {
+        ctx.params.reviewLocation = null;
+        return ctx;
+      }
+
+      const reviewLocationGeom: any = coordinatesToGeometry({
+        x: reviewLocation.lng,
+        y: reviewLocation.lat,
+      });
+      if (reviewLocationGeom?.features?.length) {
+        ctx.params.reviewLocation = reviewLocationGeom;
+      }
       return ctx;
+    } catch (e) {
+      this.logger.error(e);
+      ctx.params.reviewLocation = undefined;
     }
-
-    const reviewLocationGeom: any = coordinatesToGeometry({
-      x: reviewLocation.lng,
-      y: reviewLocation.lat,
-    });
-    if (reviewLocationGeom?.features?.length) {
-      ctx.params.reviewLocation = reviewLocationGeom;
-    }
-    return ctx;
   }
 
   @Method
