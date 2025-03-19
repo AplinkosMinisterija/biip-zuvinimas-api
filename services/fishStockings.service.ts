@@ -1164,11 +1164,11 @@ export default class FishStockingsService extends moleculer.Service {
       if (reviewLocationGeom?.features?.length) {
         ctx.params.reviewLocation = reviewLocationGeom;
       }
-      return ctx;
     } catch (e) {
-      this.logger.error(e);
       ctx.params.reviewLocation = undefined;
+      this.logger.error(e);
     }
+    return ctx;
   }
 
   @Method
