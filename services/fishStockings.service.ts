@@ -215,9 +215,9 @@ export type FishStocking<
             const ids = fishStockings.map((fishStocking) => fishStocking.id);
 
             const results = await adapter.client.raw(
-                `SELECT id, ST_AsGeoJSON(ST_Transform(geom, 4326)) AS geojson 
+              `SELECT id, ST_AsGeoJSON(ST_Transform(geom, 4326)) AS geojson 
                FROM fish_stockings
-               WHERE id IN (${ids.join(',')})`
+               WHERE id IN (${ids.join(',')})`,
             );
 
             const coordinatesById = results.rows.reduce((acc: any, row: any) => {
@@ -225,17 +225,12 @@ export type FishStocking<
               return acc;
             }, {});
 
-            return fishStockings.map((fishStocking) =>
-                coordinatesById[fishStocking.id] || null
-            );
+            return fishStockings.map((fishStocking) => coordinatesById[fishStocking.id] || null);
           } catch (error) {
-            this.logger.error(
-                'Error populating WGS84 coordinates for fishStockings:',
-                error
-            );
+            this.logger.error('Error populating WGS84 coordinates for fishStockings:', error);
             return null;
           }
-        }
+        },
       },
       batches: {
         // TODO: could be actual jsonb field instead of batches table. This would make selection and updates much easier.
@@ -612,8 +607,7 @@ export default class FishStockingsService extends moleculer.Service {
 
     // Validate canceledAt time
     if (ctx.params.canceledAt) {
-      const time: Date =
-        (eventTime ? new Date(eventTime) : existingFishStocking.eventTime);
+      const time: Date = eventTime ? new Date(eventTime) : existingFishStocking.eventTime;
       const canceledAtTime = new Date(canceledAt);
 
       if (time.getTime() - canceledAtTime.getTime() <= 0) {
@@ -971,7 +965,7 @@ export default class FishStockingsService extends moleculer.Service {
         items: {
           type: 'object',
           properties: {
-            id: 'number|integer|positive|convert',
+            id: 'number|integer|positive|convert|optional',
             reviewAmount: 'number|integer|positive|convert',
             reviewWeight: 'number|optional|convert',
           },
@@ -986,7 +980,7 @@ export default class FishStockingsService extends moleculer.Service {
     ctx: Context<
       {
         id: number;
-        reviewLocation?: {lat: number, lng: number};
+        reviewLocation?: { lat: number; lng: number };
         waybillNo?: string;
         veterinaryApprovalNo?: string;
         veterinaryApprovalOrderNo?: string;
