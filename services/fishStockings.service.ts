@@ -965,8 +965,8 @@ export default class FishStockingsService extends moleculer.Service {
         items: {
           type: 'object',
           properties: {
-            id: 'number|optional|integer|positive|convert',
-            reviewAmount: 'number|integer|positive|convert',
+            id: 'number|optional|integer|convert',
+            reviewAmount: 'number|integer|convert',
             reviewWeight: 'number|optional|convert',
           },
         },
