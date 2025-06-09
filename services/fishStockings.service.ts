@@ -1011,6 +1011,8 @@ export default class FishStockingsService extends moleculer.Service {
           fishAge: number;
           amount: number;
           weight?: number;
+          reviewAmount: number;
+          reviewWeight?: number;
         }>;
         signatures?: Array<{
           signedBy: number;
