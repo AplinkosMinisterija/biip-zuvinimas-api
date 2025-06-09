@@ -974,13 +974,12 @@ export default class FishStockingsService extends moleculer.Service {
       newBatches: {
         type: 'array',
         optional: true,
+        default: [],
         items: {
           type: 'object',
           properties: {
             fishType: 'number|integer|positive|convert',
             fishAge: 'number|integer|positive|convert',
-            amount: 'number|integer|positive|convert',
-            weight: 'number|optional|positive|convert',
             reviewAmount: 'number|integer|positive|convert',
             reviewWeight: 'number|optional|positive|convert',
           },
@@ -1009,8 +1008,6 @@ export default class FishStockingsService extends moleculer.Service {
         newBatches: Array<{
           fishType: number;
           fishAge: number;
-          amount: number;
-          weight?: number;
           reviewAmount: number;
           reviewWeight?: number;
         }>;
@@ -1041,7 +1038,15 @@ export default class FishStockingsService extends moleculer.Service {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
 
-    const mergedBatches = [...ctx.params.batches, ...ctx.params.newBatches];
+    const mergedBatches = [
+      ...ctx.params.batches,
+      ...ctx.params.newBatches.map((newBatch) => ({
+        ...newBatch,
+        // Set amount and weight to 0 because the planned fish stocking quantities are unknown
+        amount: 0,
+        weight: 0,
+      })),
+    ];
 
     // if fishStocking is ONGOING, user can update fishBatches review data.
     await ctx.call('fishBatches.reviewBatches', {
