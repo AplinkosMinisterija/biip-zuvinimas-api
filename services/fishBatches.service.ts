@@ -215,9 +215,11 @@ export default class FishBatchesService extends moleculer.Service {
         items: {
           type: 'object',
           properties: {
-            id: 'number|integer|positive',
-            reviewAmount: 'number|integer|positive|convert',
-            reviewWeight: 'number|optional|convert',
+            id: 'number|integer|optional|positive',
+            amount: { type: 'number', optional: true, integer: true, min: 0, convert: true },
+            weight: { type: 'number', optional: true, min: 0, convert: true },
+            reviewAmount: { type: 'number', integer: true, min: 0, convert: true },
+            reviewWeight: { type: 'number', optional: true, integer: true, min: 0, convert: true },
           },
         },
       },

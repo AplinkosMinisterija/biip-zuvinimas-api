@@ -965,13 +965,24 @@ export default class FishStockingsService extends moleculer.Service {
         items: {
           type: 'object',
           properties: {
-            id: 'number|optional|integer|convert',
-            reviewAmount: 'number|integer|convert',
-            reviewWeight: 'number|optional|convert',
-            fishType: 'number|optional|convert',
-            fishAge: 'number|optional|convert',
-            amount: 'number|optional|convert',
-            weight: 'number|optional|convert',
+            id: 'number|integer|positive|convert',
+            reviewAmount: { type: 'number', integer: true, min: 0, convert: true },
+            reviewWeight: { type: 'number', min: 0, convert: true },
+          },
+        },
+      },
+      newBatches: {
+        type: 'array',
+        optional: true,
+        items: {
+          type: 'object',
+          properties: {
+            fishType: 'number|integer|positive|convert',
+            fishAge: 'number|integer|positive|convert',
+            amount: 'number|integer|positive|convert',
+            weight: 'number|optional|positive|convert',
+            reviewAmount: 'number|integer|positive|convert',
+            reviewWeight: 'number|optional|positive|convert',
           },
         },
       },
@@ -994,6 +1005,12 @@ export default class FishStockingsService extends moleculer.Service {
           id: number;
           reviewAmount: number;
           reviewWeight?: number;
+        }>;
+        newBatches: Array<{
+          fishType: number;
+          fishAge: number;
+          amount: number;
+          weight?: number;
         }>;
         signatures?: Array<{
           signedBy: number;
@@ -1022,9 +1039,11 @@ export default class FishStockingsService extends moleculer.Service {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
 
+    const mergedBatches = [...ctx.params.batches, ...ctx.params.newBatches];
+
     // if fishStocking is ONGOING, user can update fishBatches review data.
     await ctx.call('fishBatches.reviewBatches', {
-      batches: ctx.params.batches,
+      batches: mergedBatches,
       fishStocking: ctx.params.id,
     });
 
