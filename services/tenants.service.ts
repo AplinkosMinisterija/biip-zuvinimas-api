@@ -2,7 +2,13 @@
 
 import moleculer, { Context } from 'moleculer';
 import { Action, Method, Service } from 'moleculer-decorators';
-import { COMMON_DEFAULT_SCOPES, COMMON_FIELDS, COMMON_SCOPES, RestrictionType } from '../types';
+import {
+  COMMON_DEFAULT_SCOPES,
+  COMMON_FIELDS,
+  COMMON_SCOPES,
+  FieldHookCallback,
+  RestrictionType,
+} from '../types';
 import { TenantUser, TenantUserRole } from './tenantUsers.service';
 
 import DbConnection from '../mixins/database.mixin';
@@ -29,7 +35,6 @@ export interface Tenant {
 
   settings: {
     auth: RestrictionType.ADMIN,
-
     fields: {
       id: {
         type: 'string',
@@ -47,6 +52,9 @@ export interface Tenant {
               return ctx.call('auth.groups.get', { id: value, scope: false });
             }),
           );
+        },
+        async onRemove({ ctx, entity }: FieldHookCallback) {
+          await ctx.call('auth.groups.remove', { id: entity.authGroupId }, { meta: ctx?.meta });
         },
         required: true,
       },
