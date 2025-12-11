@@ -1120,7 +1120,9 @@ export default class FishStockingsService extends moleculer.Service {
       const assignedTo =
         fishStocking.reviewedBy?.fullName || fishStocking.assignedTo?.fullName || '-';
       const veterinaryApprovalNo = fishStocking?.veterinaryApprovalNo || '-';
-      const inspector = fishStocking.inspector?.fullName || '-';
+      const inspector = fishStocking.inspector
+        ? `${fishStocking.inspector.firstName} ${fishStocking.inspector.lastName}`
+        : '-';
       const status = fishStocking.status;
       for (const batch of fishStocking.batches || []) {
         mappedData.push({
