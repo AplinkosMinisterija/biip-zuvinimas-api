@@ -1103,7 +1103,7 @@ export default class FishStockingsService extends moleculer.Service {
     //TODO: missing validations
     const data: any = await ctx.call('fishStockings.find', {
       ...ctx.params,
-      populate: ['assignedTo', 'reviewedBy', 'batches', 'status'],
+      populate: ['assignedTo', 'reviewedBy', 'batches', 'status', 'inspector'],
     });
     const mappedData: any[] = [];
     data.map((fishStocking: FishStocking<'reviewedBy' | 'assignedTo' | 'batches'>) => {
@@ -1120,6 +1120,9 @@ export default class FishStockingsService extends moleculer.Service {
       const assignedTo =
         fishStocking.reviewedBy?.fullName || fishStocking.assignedTo?.fullName || '-';
       const veterinaryApprovalNo = fishStocking?.veterinaryApprovalNo || '-';
+      const inspector = fishStocking.inspector
+        ? `${fishStocking.inspector.firstName} ${fishStocking.inspector.lastName}`
+        : '-';
       const status = fishStocking.status;
       for (const batch of fishStocking.batches || []) {
         mappedData.push({
@@ -1139,6 +1142,7 @@ export default class FishStockingsService extends moleculer.Service {
           'Atsakingas asmuo': assignedTo || '',
           'Veterinarinio pažymėjimo Nr.': veterinaryApprovalNo || '',
           Būsena: StatusLabels[status],
+          Priskirta: inspector,
         });
       }
     });
