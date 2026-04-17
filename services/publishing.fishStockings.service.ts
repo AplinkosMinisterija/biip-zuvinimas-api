@@ -55,6 +55,7 @@ export type PublishingFishStocking<
     }),
     PostgisMixin({
       srid: 3346,
+      geojson: { maxDecimalDigits: 2 },
     }),
   ],
   settings: {

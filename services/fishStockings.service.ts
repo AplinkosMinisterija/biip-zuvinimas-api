@@ -129,6 +129,7 @@ export type FishStocking<
     }),
     PostgisMixin({
       srid: 3346,
+      geojson: { maxDecimalDigits: 2 },
     }),
     DeepQueryMixin(),
   ],
