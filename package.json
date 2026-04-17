@@ -1,6 +1,6 @@
 {
-  "name": "biip-zuvinimas-api",
-  "version": "1.0.8",
+  "name": "biip-zvejyba",
+  "version": "1.0.0",
   "description": "My Moleculer-based microservices project",
   "private": true,
   "prettier": "@aplinkosministerija/biip-prettier-config",
@@ -10,14 +10,13 @@
     "dev": "yarn run db:migrate && ts-node ./node_modules/moleculer/bin/moleculer-runner.js --env --hot --repl --config moleculer.config.ts services/**/*.service.ts",
     "start": "yarn run db:migrate --knexfile ./dist/knexfile.js && moleculer-runner --config dist/moleculer.config.js",
     "cli": "moleculer connect NATS",
-    "test": "export DB_CONNECTION=postgresql://postgres:postgres@localhost:5331/zuvinimas && yarn run db:migrate && jest",
+    "test": "export DB_CONNECTION=postgresql://postgres:postgres@localhost:5331/zvejyba && yarn run db:migrate && jest",
     "test:watch": "yarn run test --watch",
     "test:coverage": "yarn run test --coverage",
     "lint": "eslint --ext .js,.ts .",
-    "lint:sarif": "set SARIF_ESLINT_EMBED=true && yarn run lint --format @microsoft/eslint-formatter-sarif --output-file eslint-results.sarif",
-    "dc:up": "docker compose -p biip-zuvinimas-api up --build -d",
-    "dc:down": "docker compose -p biip-zuvinimas-api down",
-    "dc:logs": "docker compose -p biip-zuvinimas-api logs -f",
+    "dc:up": "docker compose -p biip-zvejyba-api up --build -d",
+    "dc:down": "docker compose -p biip-zvejyba-api down",
+    "dc:logs": "docker compose -p biip-zvejyba-api logs -f",
     "prepare": "husky install"
   },
   "keywords": [
@@ -28,18 +27,20 @@
   "devDependencies": {
     "@aplinkosministerija/biip-prettier-config": "^1.1.0",
     "@aplinkosministerija/eslint-config-biip-api": "^1.0.0",
+    "@faker-js/faker": "^7.6.0",
     "@jest/globals": "^29.5.0",
-    "@microsoft/eslint-formatter-sarif": "^3.0.0",
-    "@types/date-fns": "^2.6.0",
     "@types/jest": "^29.5.0",
     "@types/lodash": "^4.14.191",
     "@types/mime-types": "^2.1.1",
     "@types/minio": "^7.0.17",
+    "@types/mkdirp": "^1.0.2",
     "@types/node": "^18.15.3",
     "@types/qs": "^6.9.9",
+    "@types/transform-coordinates": "^1.0.0",
+    "@types/uuid": "^9.0.1",
     "@typescript-eslint/eslint-plugin": "^5.55.0",
     "@typescript-eslint/parser": "^5.55.0",
-    "eslint": "^8.36.0",
+    "eslint": "^8.52.0",
     "eslint-config-prettier": "^8.7.0",
     "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-prefer-arrow": "^1.2.3",
@@ -57,15 +58,13 @@
     "typescript": "5.1.6"
   },
   "dependencies": {
-    "@aplinkosministerija/moleculer-accounts": "^1.6.0",
     "@moleculer/database": "github:ambrazasp/moleculerjs-database",
-    "@moleculer/lab": "^0.6.4",
     "@r2d2bzh/moleculer-cron": "^0.1.4",
-    "biip-auth-nodejs": "github:dadpatch/biip-auth-nodejs",
-    "date-fns": "^2.29.3",
+    "@turf/centroid": "^7.2.0",
+    "biip-auth-nodejs": "DadPatch/biip-auth-nodejs",
     "dotenv": "^16.0.3",
     "ioredis": "^5.3.1",
-    "knex": "^2.4.2",
+    "knex": "^3.0.1",
     "lodash": "^4.17.21",
     "mime-types": "^2.1.35",
     "minio": "^7.0.33",
@@ -75,15 +74,14 @@
     "moleculer-decorators": "^1.3.0",
     "moleculer-knex-filters": "github:DadPatch/moleculer-knex-filters",
     "moleculer-minio": "github:dadpatch/moleculer-minio",
-    "moleculer-postgis": "^0.2.7",
+    "moleculer-postgis": "github:AplinkosMinisterija/moleculer-postgis#v0.4.0",
     "moleculer-sentry": "^2.0.0",
     "moleculer-web": "^0.10.5",
+    "moment": "^2.29.4",
     "nats": "^2.13.1",
     "objection": "^3.0.1",
     "pg": "^8.10.0",
-    "postmark": "^4.0.2",
-    "transform-coordinates": "^1.0.0",
-    "xlsx": "^0.18.5"
+    "transform-coordinates": "^1.0.0"
   },
   "engines": {
     "node": ">=18.0.0 <19.0.0"
@@ -95,7 +93,30 @@
     ],
     "*.{md,html,css}": "prettier --write"
   },
+  "jest": {
+    "coverageDirectory": "<rootDir>/coverage",
+    "testEnvironment": "node",
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js"
+    ],
+    "transform": {
+      "^.+\\.(ts|tsx)$": "ts-jest"
+    },
+    "testMatch": [
+      "**/*.spec.(ts|js)"
+    ],
+    "globals": {
+      "ts-jest": {
+        "tsconfig": "tsconfig.json"
+      }
+    }
+  },
   "eslintConfig": {
     "extends": "@aplinkosministerija/eslint-config-biip-api"
+  },
+  "resolutions": {
+    "moleculer-postgis": "github:AplinkosMinisterija/moleculer-postgis#v0.4.0"
   }
 }
