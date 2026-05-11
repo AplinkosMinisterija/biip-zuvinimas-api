@@ -1293,7 +1293,7 @@ export default class FishStockingsService extends moleculer.Service {
   @Method
   async handleSort(ctx: Context<any, UserAuthMeta>) {
     ctx.params = {
-      sort: '-createdAt',
+      sort: '-createdAt,-id',
       ...ctx.params,
     };
     return ctx;
