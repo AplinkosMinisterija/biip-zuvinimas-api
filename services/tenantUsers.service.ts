@@ -324,6 +324,14 @@ export default class TenantUsersService extends moleculer.Service {
 
   @Method
   async beforeSelect(ctx: Context<any, UserAuthMeta>) {
+    // Internal service-to-service calls (e.g. tenantUsers.beforeCreate calling
+    // tenantUsers.count for duplicate detection) carry no auth metadata. Skip
+    // permission enforcement for those — HTTP requests always populate authUser
+    // via api.service.ts authenticate() before any action runs.
+    if (!ctx.meta?.authUser) {
+      return;
+    }
+
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can select users from tenant.');
 
     if (ctx.meta.authUser.type === AuthUserRole.USER) {

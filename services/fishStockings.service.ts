@@ -1230,6 +1230,9 @@ export default class FishStockingsService extends moleculer.Service {
             ids,
           );
         }
+        // Strip from filters so moleculer-knex-filters doesn't try to apply it
+        // as a plain column predicate (fish_types is jsonb — would 500).
+        delete filters.fishTypes;
       }
 
       if (filters.inspector) {
@@ -1237,21 +1240,24 @@ export default class FishStockingsService extends moleculer.Service {
         if (Number.isFinite(filter)) {
           appendRaw(`("inspector"::jsonb->'id')::int = ?`, [filter]);
         }
-        filters.inspector = undefined;
+        delete filters.inspector;
       }
       if (filters.locationName) {
         appendRaw(`"location"::jsonb->>'name' ilike ?`, [`%${filters.locationName}%`]);
+        delete filters.locationName;
       }
       if (filters.municipality) {
         appendRaw(`"location"::jsonb->'municipality'->>'name' ilike ?`, [
           `%${filters.municipality}%`,
         ]);
+        delete filters.municipality;
       }
       if (filters.municipalityId) {
         const id = Number(filters.municipalityId);
         if (Number.isFinite(id)) {
           appendRaw(`("location"::jsonb->'municipality'->>'id')::int = ?`, [id]);
         }
+        delete filters.municipalityId;
       }
       if (filters.status) {
         const settings: Setting = await ctx.call('settings.getSettings');
