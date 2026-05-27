@@ -271,7 +271,10 @@ export default class TenantsService extends moleculer.Service {
     }
   }
 
-  @Action()
+  @Action({
+    visibility: 'protected',
+    rest: null,
+  })
   createPermissive(ctx: Context) {
     return this.createEntity(ctx, ctx.params, {
       permissive: true,

@@ -205,6 +205,23 @@ export default class TenantUsersService extends moleculer.Service {
 
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can add users to tenant.');
 
+    // validateCanManageTenantUser only checks the caller's role in their CURRENT
+    // X-Profile tenant. Without an additional check here, an OWNER/USER_ADMIN of
+    // tenant A could invite themselves (or anyone) as OWNER of tenant B by
+    // simply passing tenant=B in the body — auth.users.invite is server-to-server
+    // and trusts our companyId, so it would happily add the auth-group ADMIN
+    // binding. Verify the target tenant matches the caller's active profile.
+    // Admins (ADMIN / SUPER_ADMIN) are allowed to invite across any tenant.
+    const isAdmin =
+      ctx.meta?.authUser?.type === AuthUserRole.ADMIN ||
+      ctx.meta?.authUser?.type === AuthUserRole.SUPER_ADMIN;
+    if (!isAdmin) {
+      const profile = Number(ctx.meta?.profile);
+      if (!Number.isFinite(profile) || Number(tenantId) !== profile) {
+        throwNoRightsError('Cannot invite users into another tenant');
+      }
+    }
+
     const tenant: Tenant = await ctx.call('tenants.resolve', { id: tenantId });
 
     const authRole = role === TenantUserRole.OWNER ? AuthGroupRole.ADMIN : AuthGroupRole.USER;
