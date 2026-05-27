@@ -163,18 +163,22 @@ export default class ApiService extends moleculer.Service {
           authUser: authUser.id,
         },
       });
-      const profile = req.headers['x-profile'] as any;
-      if (!!profile && profile !== FREELANCER_PROFILE_ID) {
+      const profileHeader = req.headers['x-profile'] as any;
+      if (!!profileHeader && profileHeader !== FREELANCER_PROFILE_ID) {
+        const profileId = Number(profileHeader);
+        if (!Number.isFinite(profileId)) {
+          throwNoRightsError('Unauthorized');
+        }
         const currentTenantUser = await ctx.call('tenantUsers.findOne', {
           query: {
-            tenant: Number(profile),
+            tenant: profileId,
             user: user.id,
           },
         });
         if (!currentTenantUser) {
           throwNoRightsError('Unauthorized');
         }
-        ctx.meta.profile = profile;
+        ctx.meta.profile = profileId;
       }
     }
 

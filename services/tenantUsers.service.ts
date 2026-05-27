@@ -10,6 +10,7 @@ import {
   CommonPopulates,
   RestrictionType,
   Table,
+  throwNoRightsError,
 } from '../types';
 import { AuthUserRole, UserAuthMeta } from './api.service';
 import { User, UserType } from './users.service';
@@ -125,8 +126,8 @@ export type TenantUser<
   hooks: {
     before: {
       create: ['beforeCreate', 'canManageTenantUsers'],
-      update: ['canManageTenantUsers'],
-      remove: ['canManageTenantUsers'],
+      update: ['canManageTenantUsers', 'validateTargetTenant'],
+      remove: ['canManageTenantUsers', 'validateTargetTenant'],
       list: ['beforeSelect'],
       count: ['beforeSelect'],
       all: ['beforeSelect'],
@@ -325,6 +326,33 @@ export default class TenantUsersService extends moleculer.Service {
   @Method
   async canManageTenantUsers(ctx: Context<any, UserAuthMeta>) {
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can manage tenant users.');
+  }
+
+  @Method
+  async validateTargetTenant(ctx: Context<any, UserAuthMeta>) {
+    // Admins (incl. SUPER_ADMIN) can manage any tenantUser across tenants.
+    if (
+      ctx.meta?.authUser?.type === AuthUserRole.ADMIN ||
+      ctx.meta?.authUser?.type === AuthUserRole.SUPER_ADMIN
+    ) {
+      return;
+    }
+
+    const id = ctx.params?.id;
+    if (id == null) {
+      throwNoRightsError('Missing id');
+    }
+
+    const target: TenantUser = await this.resolveEntities(ctx, { id, scope: false });
+    if (!target) {
+      throw new moleculer.Errors.MoleculerClientError('Not found', 404, 'NOT_FOUND');
+    }
+
+    const profile = Number(ctx.meta?.profile);
+    // tenant column is integer in DB but typed as string through Tenant['id'].
+    if (!Number.isFinite(profile) || Number(target.tenant) !== profile) {
+      throwNoRightsError('Cannot manage tenantUser from another tenant');
+    }
   }
 
   @Method

@@ -1206,58 +1206,51 @@ export default class FishStockingsService extends moleculer.Service {
     };
     let filters;
 
+    const appendRaw = (clause: string, bindings: any[] = []) => {
+      if (query.$raw) {
+        query.$raw.condition += ` AND ${clause}`;
+        query.$raw.bindings = [...(query.$raw.bindings || []), ...bindings];
+      } else {
+        query.$raw = { condition: clause, bindings };
+      }
+    };
+
     if (ctx.params.filter) {
       filters =
         typeof ctx.params.filter === 'string' ? JSON.parse(ctx.params.filter) : ctx.params.filter;
 
       if (filters.fishTypes) {
-        const filter = filters.fishTypes;
-        query.$raw = {
-          condition:
-            (query?.$raw ? query.$raw.condition + ' AND ' : '') +
-            `EXISTS (SELECT 1 FROM jsonb_each("fish_types") AS ft WHERE ft.value::int IN (${filter}))`,
-        };
+        const ids = (Array.isArray(filters.fishTypes) ? filters.fishTypes : [filters.fishTypes])
+          .map((v: any) => Number(v))
+          .filter((n: number) => Number.isFinite(n));
+        if (ids.length) {
+          const placeholders = ids.map(() => '?').join(',');
+          appendRaw(
+            `EXISTS (SELECT 1 FROM jsonb_each("fish_types") AS ft WHERE ft.value::int IN (${placeholders}))`,
+            ids,
+          );
+        }
       }
 
       if (filters.inspector) {
         const filter = Number(filters.inspector);
-        if (query.$raw) {
-          query.$raw.condition += ` AND ("inspector"::jsonb->'id')::int = ${filter}`;
-        } else {
-          query.$raw = {
-            condition: `("inspector"::jsonb->'id')::int = ${filter}`,
-          };
+        if (Number.isFinite(filter)) {
+          appendRaw(`("inspector"::jsonb->'id')::int = ?`, [filter]);
         }
         filters.inspector = undefined;
       }
       if (filters.locationName) {
-        const filter = filters.locationName;
-        if (query.$raw) {
-          query.$raw.condition += ` AND "location"::jsonb->>'name' ilike '%${filter}%'`;
-        } else {
-          query.$raw = {
-            condition: `"location"::jsonb->>'name' ilike '%${filter}%'`,
-          };
-        }
+        appendRaw(`"location"::jsonb->>'name' ilike ?`, [`%${filters.locationName}%`]);
       }
       if (filters.municipality) {
-        const filter = filters.municipality;
-        if (query.$raw) {
-          query.$raw.condition += ` AND "location"::jsonb->'municipality'->>'name' ilike '%${filter}%'`;
-        } else {
-          query.$raw = {
-            condition: `"location"::jsonb->'municipality'->>'name' ilike '%${filter}%'`,
-          };
-        }
+        appendRaw(`"location"::jsonb->'municipality'->>'name' ilike ?`, [
+          `%${filters.municipality}%`,
+        ]);
       }
       if (filters.municipalityId) {
-        const filter = filters.municipalityId;
-        if (query.$raw) {
-          query.$raw.condition += ` AND "location"::jsonb->'municipality'@> '{"id":${filter}}'`;
-        } else {
-          query.$raw = {
-            condition: `"location"::jsonb->'municipality'@> '{"id":${filter}}'`,
-          };
+        const id = Number(filters.municipalityId);
+        if (Number.isFinite(id)) {
+          appendRaw(`("location"::jsonb->'municipality'->>'id')::int = ?`, [id]);
         }
       }
       if (filters.status) {
@@ -1265,23 +1258,13 @@ export default class FishStockingsService extends moleculer.Service {
 
         const statusQueries: any = getStatusQueries(settings.maxTimeForRegistration);
 
-        let conditions = '';
-        map(filters.status, (status) => {
-          const q = statusQueries[status];
-          if (!q) {
-            return;
-          }
-          if (conditions) {
-            conditions += ` OR (${q})`;
-          } else {
-            conditions += `(${q})`;
-          }
-        });
+        const conditions = map(filters.status, (status) => statusQueries[status])
+          .filter(Boolean)
+          .map((q: string) => `(${q})`)
+          .join(' OR ');
 
-        if (query.$raw) {
-          query.$raw.condition += ` AND (${conditions})`;
-        } else {
-          query.$raw = { condition: `(${conditions})` };
+        if (conditions) {
+          appendRaw(`(${conditions})`);
         }
       }
     }
@@ -1299,49 +1282,6 @@ export default class FishStockingsService extends moleculer.Service {
     return ctx;
   }
 
-  @Method
-  async handleProfile(q: object, ctx: Context<any, UserAuthMeta>) {
-    if (ctx.meta) {
-      // adminai
-      if (
-        !ctx.meta.user &&
-        ctx.meta.authUser &&
-        (ctx.meta.authUser.type === AuthUserRole.ADMIN ||
-          ctx.meta.authUser.type === AuthUserRole.SUPER_ADMIN)
-      ) {
-        if (isEmpty(ctx.meta.authUser.municipalities)) {
-          throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
-            error: 'NoMunicipalityPermission',
-          });
-        }
-        return {
-          ...q,
-          $raw: {
-            condition: `("location"::jsonb->'municipality'->'id')::int in (${ctx.meta.authUser.municipalities?.toString()})`,
-          },
-        };
-      }
-      // sesijoj imone
-      if (ctx.meta.profile && ctx.meta?.user) {
-        return {
-          ...q,
-          $raw: {
-            condition: `(tenant_id = ${ctx.meta.profile} OR stocking_customer_id = ${ctx.meta.profile})`,
-          },
-        };
-      }
-
-      // sesijoj freelancer
-      if (!ctx.meta.profile && ctx.meta?.user) {
-        return {
-          ...q,
-          createdBy: ctx.meta.user.id,
-          tenant: { $exists: false },
-        };
-      }
-    }
-    return q;
-  }
 
   @Event()
   async 'fishBatches.*'(ctx: Context<EntityChangedParams<FishBatch>>) {
