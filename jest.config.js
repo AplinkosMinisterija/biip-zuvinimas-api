@@ -5,4 +5,8 @@ module.exports = {
   coverageDirectory: './coverage',
   rootDir: './',
   roots: ['./test'],
+  setupFiles: ['./test/helpers/setup.js'],
+  moduleFileExtensions: ['ts', 'tsx', 'js'],
+  testMatch: ['**/*.spec.(ts|js)'],
+  testTimeout: 60000,
 };

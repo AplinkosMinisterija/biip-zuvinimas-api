@@ -43,6 +43,21 @@ export type FishBatch<
 @Service({
   name: 'fishBatches',
   mixins: [DbConnection()],
+  // Internal-only service: all actions are called via ctx.call from other services
+  // (mainly fishStockings). Marking as 'protected' prevents API gateway exposure
+  // even though the gateway uses mappingPolicy: 'all'.
+  actions: {
+    find: { visibility: 'protected' },
+    count: { visibility: 'protected' },
+    list: { visibility: 'protected' },
+    get: { visibility: 'protected' },
+    create: { visibility: 'protected' },
+    update: { visibility: 'protected' },
+    remove: { visibility: 'protected' },
+    findOne: { visibility: 'protected' },
+    createMany: { visibility: 'protected' },
+    resolve: { visibility: 'protected' },
+  },
   settings: {
     fields: {
       id: {
@@ -95,6 +110,7 @@ export type FishBatch<
 })
 export default class FishBatchesService extends moleculer.Service {
   @Action({
+    visibility: 'protected',
     params: {
       batches: {
         type: 'array',
@@ -130,6 +146,7 @@ export default class FishBatchesService extends moleculer.Service {
   }
 
   @Action({
+    visibility: 'protected',
     params: {
       batches: {
         type: 'array',
@@ -170,6 +187,7 @@ export default class FishBatchesService extends moleculer.Service {
   }
 
   @Action({
+    visibility: 'protected',
     params: {
       batches: {
         type: 'array',
@@ -208,6 +226,7 @@ export default class FishBatchesService extends moleculer.Service {
   }
 
   @Action({
+    visibility: 'protected',
     params: {
       batches: {
         type: 'array',
@@ -244,7 +263,7 @@ export default class FishBatchesService extends moleculer.Service {
     });
   }
 
-  @Action()
+  @Action({ visibility: 'protected' })
   async getAll(ctx: Context) {
     return this.findEntities(ctx, ctx.params);
   }

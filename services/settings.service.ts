@@ -29,7 +29,6 @@ export type Setting<
 > = Table<Fields, Populates, P, F>;
 
 @Service({
-  auth: RestrictionType.ADMIN,
   name: 'settings',
   mixins: [
     DbConnection({
@@ -43,6 +42,7 @@ export type Setting<
     }),
   ],
   settings: {
+    auth: RestrictionType.ADMIN,
     fields: {
       id: {
         type: 'number',
@@ -63,13 +63,14 @@ export type Setting<
       auth: RestrictionType.DEFAULT,
     },
     get: {
-      auth: RestrictionType.DEFAULT
+      auth: RestrictionType.DEFAULT,
     },
   },
 })
 export default class SettingsService extends moleculer.Service {
   @Action({
     rest: 'GET /',
+    auth: RestrictionType.DEFAULT,
   })
   async getSettings(ctx: Context<null, UserAuthMeta>) {
     const settings = await this.findEntities(ctx);
@@ -81,6 +82,7 @@ export default class SettingsService extends moleculer.Service {
 
   @Action({
     rest: 'PATCH /',
+    auth: RestrictionType.ADMIN,
     params: {
       minTimeTillFishStocking: 'number',
       maxTimeForRegistration: 'number',

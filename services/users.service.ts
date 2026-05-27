@@ -242,17 +242,9 @@ export default class UsersService extends moleculer.Service {
     return this.findEntities(ctx);
   }
 
-  @Action()
-  async test(ctx: Context) {
-    const adapter = await this.getAdapter(ctx);
-    const knex = adapter.client;
-    const response = await knex.raw('select * from users where id = ?', [1]);
-    return response.rows;
-  }
-
   @Action({
     rest: 'GET /byTenant/:tenant',
-    auth: RestrictionType.DEFAULT,
+    auth: RestrictionType.ADMIN,
     params: {
       tenant: {
         type: 'number',

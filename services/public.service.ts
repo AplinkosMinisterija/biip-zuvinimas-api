@@ -234,12 +234,15 @@ export default class PublicService extends moleculer.Service {
     const { fishType, date, cadastralId } = ctx.params;
 
     const query: any = {};
+    const clauses: string[] = [];
+    const bindings: any[] = [];
 
     if (fishType) {
-      const condition = `fish_batches::jsonb @> '[{"fish_type": {"id": ${fishType} }}]'`;
-      query.$raw = {
-        condition,
-      };
+      const fishTypeId = Number(fishType);
+      if (Number.isFinite(fishTypeId)) {
+        clauses.push(`fish_batches::jsonb @> ?::jsonb`);
+        bindings.push(JSON.stringify([{ fish_type: { id: fishTypeId } }]));
+      }
     }
 
     if (date) {
@@ -250,13 +253,12 @@ export default class PublicService extends moleculer.Service {
     }
 
     if (cadastralId) {
-      let condition = `location::jsonb @> '{"cadastral_id": "${cadastralId}"}'`;
-      if (query.$raw?.condition) {
-        condition = query.$raw?.condition + ' AND ' + condition;
-      }
-      query.$raw = {
-        condition,
-      };
+      clauses.push(`location::jsonb @> ?::jsonb`);
+      bindings.push(JSON.stringify({ cadastral_id: String(cadastralId) }));
+    }
+
+    if (clauses.length) {
+      query.$raw = { condition: clauses.join(' AND '), bindings };
     }
 
     const completedFishStockings: FishStockingsCompleted[] = await ctx.call(

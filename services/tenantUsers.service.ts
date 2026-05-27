@@ -10,6 +10,7 @@ import {
   CommonPopulates,
   RestrictionType,
   Table,
+  throwNoRightsError,
 } from '../types';
 import { AuthUserRole, UserAuthMeta } from './api.service';
 import { User, UserType } from './users.service';
@@ -125,8 +126,8 @@ export type TenantUser<
   hooks: {
     before: {
       create: ['beforeCreate', 'canManageTenantUsers'],
-      update: ['canManageTenantUsers'],
-      remove: ['canManageTenantUsers'],
+      update: ['canManageTenantUsers', 'validateTargetTenant'],
+      remove: ['canManageTenantUsers', 'validateTargetTenant'],
       list: ['beforeSelect'],
       count: ['beforeSelect'],
       all: ['beforeSelect'],
@@ -203,6 +204,23 @@ export default class TenantUsersService extends moleculer.Service {
     // OWNER and USER_ADMIN can invite users
 
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can add users to tenant.');
+
+    // validateCanManageTenantUser only checks the caller's role in their CURRENT
+    // X-Profile tenant. Without an additional check here, an OWNER/USER_ADMIN of
+    // tenant A could invite themselves (or anyone) as OWNER of tenant B by
+    // simply passing tenant=B in the body — auth.users.invite is server-to-server
+    // and trusts our companyId, so it would happily add the auth-group ADMIN
+    // binding. Verify the target tenant matches the caller's active profile.
+    // Admins (ADMIN / SUPER_ADMIN) are allowed to invite across any tenant.
+    const isAdmin =
+      ctx.meta?.authUser?.type === AuthUserRole.ADMIN ||
+      ctx.meta?.authUser?.type === AuthUserRole.SUPER_ADMIN;
+    if (!isAdmin) {
+      const profile = Number(ctx.meta?.profile);
+      if (!Number.isFinite(profile) || Number(tenantId) !== profile) {
+        throwNoRightsError('Cannot invite users into another tenant');
+      }
+    }
 
     const tenant: Tenant = await ctx.call('tenants.resolve', { id: tenantId });
 
@@ -306,6 +324,14 @@ export default class TenantUsersService extends moleculer.Service {
 
   @Method
   async beforeSelect(ctx: Context<any, UserAuthMeta>) {
+    // Internal service-to-service calls (e.g. tenantUsers.beforeCreate calling
+    // tenantUsers.count for duplicate detection) carry no auth metadata. Skip
+    // permission enforcement for those — HTTP requests always populate authUser
+    // via api.service.ts authenticate() before any action runs.
+    if (!ctx.meta?.authUser) {
+      return;
+    }
+
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can select users from tenant.');
 
     if (ctx.meta.authUser.type === AuthUserRole.USER) {
@@ -325,6 +351,33 @@ export default class TenantUsersService extends moleculer.Service {
   @Method
   async canManageTenantUsers(ctx: Context<any, UserAuthMeta>) {
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can manage tenant users.');
+  }
+
+  @Method
+  async validateTargetTenant(ctx: Context<any, UserAuthMeta>) {
+    // Admins (incl. SUPER_ADMIN) can manage any tenantUser across tenants.
+    if (
+      ctx.meta?.authUser?.type === AuthUserRole.ADMIN ||
+      ctx.meta?.authUser?.type === AuthUserRole.SUPER_ADMIN
+    ) {
+      return;
+    }
+
+    const id = ctx.params?.id;
+    if (id == null) {
+      throwNoRightsError('Missing id');
+    }
+
+    const target: TenantUser = await this.resolveEntities(ctx, { id, scope: false });
+    if (!target) {
+      throw new moleculer.Errors.MoleculerClientError('Not found', 404, 'NOT_FOUND');
+    }
+
+    const profile = Number(ctx.meta?.profile);
+    // tenant column is integer in DB but typed as string through Tenant['id'].
+    if (!Number.isFinite(profile) || Number(target.tenant) !== profile) {
+      throwNoRightsError('Cannot manage tenantUser from another tenant');
+    }
   }
 
   @Method

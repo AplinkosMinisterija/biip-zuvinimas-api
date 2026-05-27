@@ -5,6 +5,13 @@ import { Action, Service } from 'moleculer-decorators';
 // @ts-ignore
 import MinioMixin from 'moleculer-minio';
 
+// All MinioMixin actions are lifted to `visibility: 'protected'` so that they
+// remain callable internally via `ctx.call('minio.<action>', ...)` from other
+// services (e.g. fishStockingPhotos) but are NOT reachable through the
+// moleculer-web HTTP gateway, which runs with `mappingPolicy: 'all'` and
+// `whitelist: ['**']`. Without this, an authenticated USER could hit e.g.
+// `POST /api/minio/fPutObject {filePath:"/etc/passwd",...}` and trivially read
+// or write arbitrary files on the API host filesystem.
 @Service({
   name: 'minio',
   mixins: [MinioMixin],
@@ -15,9 +22,33 @@ import MinioMixin from 'moleculer-minio';
     accessKey: process.env.MINIO_ACCESSKEY,
     secretKey: process.env.MINIO_SECRETKEY,
   },
+  actions: {
+    makeBucket: { visibility: 'protected' },
+    listBuckets: { visibility: 'protected' },
+    bucketExists: { visibility: 'protected' },
+    removeBucket: { visibility: 'protected' },
+    listObjects: { visibility: 'protected' },
+    listObjectsV2: { visibility: 'protected' },
+    listIncompleteUploads: { visibility: 'protected' },
+    getObject: { visibility: 'protected' },
+    getPartialObject: { visibility: 'protected' },
+    fGetObject: { visibility: 'protected' },
+    putObject: { visibility: 'protected' },
+    fPutObject: { visibility: 'protected' },
+    copyObject: { visibility: 'protected' },
+    statObject: { visibility: 'protected' },
+    removeObject: { visibility: 'protected' },
+    removeObjects: { visibility: 'protected' },
+    removeIncompleteUpload: { visibility: 'protected' },
+    presignedUrl: { visibility: 'protected' },
+    presignedGetObject: { visibility: 'protected' },
+    presignedPutObject: { visibility: 'protected' },
+    presignedPostPolicy: { visibility: 'protected' },
+  },
 })
 export default class MinioService extends Moleculer.Service {
   @Action({
+    visibility: 'protected',
     params: {
       bucketName: 'string',
       objectName: 'string',

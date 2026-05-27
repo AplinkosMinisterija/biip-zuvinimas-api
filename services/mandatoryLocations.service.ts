@@ -73,24 +73,28 @@ export default class MandatoryLocationsService extends moleculer.Service {
     }
     const filters =
       typeof ctx.params.filter === 'string' ? JSON.parse(ctx.params.filter) : ctx.params.filter;
-    const filterTypes = keys(filters);
-    let condition = '';
-    for (const filterType of filterTypes) {
-      if (['name', 'cadastral_id', 'municipality'].some((key) => key === filterType)) {
-        const partialCondition = `"location"::jsonb->>'${filterType}' ilike '%${filters[filterType]}%'`;
-        if (condition) {
-          condition += ` AND ${partialCondition}`;
-        } else {
-          condition += partialCondition;
-        }
-      }
+    const allowedFilters = ['name', 'cadastral_id', 'municipality'];
+    const clauses: string[] = [];
+    const bindings: any[] = [];
+
+    for (const filterType of keys(filters)) {
+      if (!allowedFilters.includes(filterType)) continue;
+      const value = filters[filterType];
+      if (value == null || value === '') continue;
+      clauses.push(`"location"::jsonb->>'${filterType}' ilike ?`);
+      bindings.push(`%${value}%`);
+    }
+
+    if (!clauses.length) {
+      return ctx;
     }
 
     ctx.params = {
       ...ctx.params,
       query: {
         $raw: {
-          condition,
+          condition: clauses.join(' AND '),
+          bindings,
         },
       },
     };

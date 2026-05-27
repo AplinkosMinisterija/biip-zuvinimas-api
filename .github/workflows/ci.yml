@@ -19,12 +19,12 @@ jobs:
       postgres:
         image: postgis/postgis:14-master
         ports:
-          - '5331:5432'
+          - '5449:5432'
         env:
           POSTGRES_HOST: localhost
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: zuvinimas
+          POSTGRES_DB: zuvinimas_test
           TZ: 'Etc/GMT'
           PGTZ: 'Etc/GMT'
         options: >-
@@ -32,6 +32,10 @@ jobs:
           --health-interval 2s
           --health-timeout 2s
           --health-retries 30
+
+    env:
+      DB_CONNECTION: postgresql://postgres:postgres@localhost:5449/zuvinimas_test
+      REDIS_CONNECTION: redis://localhost:6379
 
     steps:
       - uses: actions/checkout@v3
@@ -45,11 +49,16 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable --immutable-cache --check-cache
 
-      - name: Run tests
-        run: yarn test --passWithNoTests
+      - name: Ensure postgis extension is enabled
+        run: |
+          PGPASSWORD=postgres psql -h localhost -p 5449 -U postgres -d zuvinimas_test \
+            -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
       - name: Build
         run: yarn run build
+
+      - name: Run tests
+        run: yarn test
 
   validate-docker-build:
     name: Validate if docker image builds
