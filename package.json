@@ -101,6 +101,7 @@
     "extends": "@aplinkosministerija/eslint-config-biip-api"
   },
   "resolutions": {
-    "@types/node": "^18.19.130"
+    "@types/node": "^18.19.130",
+    "minio": "7.1.3"
   }
 }
