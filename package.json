@@ -99,5 +99,8 @@
   },
   "eslintConfig": {
     "extends": "@aplinkosministerija/eslint-config-biip-api"
+  },
+  "resolutions": {
+    "@types/node": "^18.19.130"
   }
 }
