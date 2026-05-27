@@ -66,12 +66,20 @@ export type FishStockingPhoto<
       url: {
         virtual: true,
         get({ entity, ctx }: FieldHookCallback) {
-          return ctx.call('minio.presignedGetObject', {
+          // Use the direct public URL (no signature), not a presigned URL.
+          // The MinIO `fishStockingPhotos/` prefix is configured for anonymous
+          // s3:GetObject (verified: direct curl returns NoSuchKey on a missing
+          // object instead of 403), so signed URLs add nothing but a failure
+          // mode — the old code passed `requestDate: new Date().toDateString()`
+          // which anchored the signing timestamp to today's 00:00, so the URL
+          // would die mid-day and the UI showed broken images plus a spinner
+          // (S3 returned `<Code>Forbidden</Code><Message>Request has expired
+          // </Message>`). publicUrl has no expiry — photos are visible to
+          // USER and ADMIN whenever they open the stocking page. Mirror of
+          // how biip-medziokle-api / biip-gyvunai-api serve their photos.
+          return ctx.call('minio.publicUrl', {
             bucketName: process.env.MINIO_BUCKET,
             objectName: this.getObjectName(entity),
-            expires: 60000,
-            reqParams: {},
-            requestDate: new Date().toDateString(),
           });
         },
       },

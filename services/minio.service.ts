@@ -60,12 +60,19 @@ export default class MinioService extends Moleculer.Service {
       objectName: string;
     }>,
   ) {
+    // Drop the port segment for the conventional HTTP(S) ports so the URL
+    // matches what the CDN/Caddy in front of MinIO actually serves on
+    // staging/production (`https://staging-cdn.biip.lt/<bucket>/<object>`,
+    // no `:443` suffix). Mirror of biip-medziokle-api / biip-gyvunai-api.
+    let portString = '';
+    if (![80, 443].includes(Number(this.client.port))) {
+      portString = `:${this.client.port}`;
+    }
     return (
       this.client.protocol +
       '//' +
       this.client.host +
-      ':' +
-      this.client.port +
+      portString +
       '/' +
       ctx.params.bucketName +
       '/' +
