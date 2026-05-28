@@ -556,6 +556,11 @@ export default class FishStockingsService extends moleculer.Service {
     },
   })
   async updateFishStocking(ctx: Context<any, UserAuthMeta>) {
+    // Normalize reviewLocation: admin FE round-trips the WKB hex string we
+    // returned on GET; also tolerates {lat,lng} or GeoJSON. Without this
+    // moleculer-postgis throws EMPTY_FEATURES on update.
+    await this.parseReviewLocationField(ctx);
+
     const existingFishStocking: FishStocking = await this.resolveEntities(ctx, {
       id: ctx.params.id,
       populate: 'status',
@@ -1174,7 +1179,7 @@ export default class FishStockingsService extends moleculer.Service {
   async parseReviewLocationField(
     ctx: Context<{
       id?: number;
-      reviewLocation?: { lat: number; lng: number };
+      reviewLocation?: { lat: number; lng: number } | string | any;
     }>,
   ) {
     try {
@@ -1182,6 +1187,21 @@ export default class FishStockingsService extends moleculer.Service {
 
       if (isEmpty(reviewLocation)) {
         ctx.params.reviewLocation = null;
+        return ctx;
+      }
+
+      // Admin FE on PATCH round-trips the WKB hex string we returned on GET
+      // (e.g. "0101000020120D0000..."). That value is already stored — passing
+      // it to moleculer-postgis on update throws EMPTY_FEATURES. Drop the key
+      // so the field is left untouched.
+      if (typeof reviewLocation === 'string') {
+        delete ctx.params.reviewLocation;
+        return ctx;
+      }
+
+      // Already a GeoJSON FeatureCollection (e.g. user redraws on the map) —
+      // pass through as is.
+      if (reviewLocation?.type === 'FeatureCollection') {
         return ctx;
       }
 
