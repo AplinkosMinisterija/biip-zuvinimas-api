@@ -1,7 +1,7 @@
 'use strict';
 
 import moleculer, { Context } from 'moleculer';
-import { Action, Method, Service } from 'moleculer-decorators';
+import { Action, Event, Method, Service } from 'moleculer-decorators';
 
 import DbConnection from '../mixins/database.mixin';
 import {
@@ -68,9 +68,13 @@ export type Setting<
   },
 })
 export default class SettingsService extends moleculer.Service {
+  // Settings are global, change a few times a year. fishStockings list calls
+  // this twice per request (status filter + status virtual field). Cache and
+  // invalidate on writes.
   @Action({
     rest: 'GET /',
     auth: RestrictionType.DEFAULT,
+    cache: { ttl: 60 * 60 },
   })
   async getSettings(ctx: Context<null, UserAuthMeta>) {
     const settings = await this.findEntities(ctx);
@@ -78,6 +82,11 @@ export default class SettingsService extends moleculer.Service {
       minTimeTillFishStocking: settings[0]?.minTimeTillFishStocking,
       maxTimeForRegistration: settings[0]?.maxTimeForRegistration,
     };
+  }
+
+  @Event()
+  async 'settings.*'() {
+    await this.broker.cacher?.clean('settings.**');
   }
 
   @Action({

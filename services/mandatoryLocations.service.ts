@@ -1,7 +1,7 @@
 'use strict';
 
 import moleculer, { Context } from 'moleculer';
-import { Method, Service } from 'moleculer-decorators';
+import { Event, Method, Service } from 'moleculer-decorators';
 
 import { keys, map } from 'lodash';
 import DbConnection from '../mixins/database.mixin';
@@ -64,8 +64,24 @@ export type MandatoryLocation<
       remove: ['beforeDelete'],
     },
   },
+  // Mandatory locations change rarely (seeded from upstream UETK); the
+  // fishStockings.mandatory virtual field hits `find` on every list page,
+  // so cache the result and invalidate on writes.
+  actions: {
+    find: {
+      cache: { ttl: 60 * 60 },
+    },
+    list: {
+      cache: { ttl: 60 * 60 },
+    },
+  },
 })
 export default class MandatoryLocationsService extends moleculer.Service {
+  @Event()
+  async 'mandatoryLocations.*'() {
+    await this.broker.cacher?.clean('mandatoryLocations.**');
+  }
+
   @Method
   async beforeSelect(ctx: Context<any>) {
     if (!ctx.params.filter) {
