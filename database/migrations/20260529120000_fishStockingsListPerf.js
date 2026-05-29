@@ -33,10 +33,12 @@ exports.up = async function (knex) {
       ON fish_stockings (created_by)
       WHERE deleted_at IS NULL AND tenant_id IS NULL;
   `);
-  await knex.raw(`
-    CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_fish_stockings_location_gin
-      ON fish_stockings USING gin (location jsonb_path_ops);
-  `);
+  // Note: a GIN(location jsonb_path_ops) index was considered but skipped —
+  // existing JSONB filters (ILIKE on name, scalar = on municipality.id) only
+  // use text extraction, not @> containment, so jsonb_path_ops would never be
+  // chosen by the planner. If the admin municipality filter is still slow
+  // after the tenant/event_time indexes ship, add a B-tree expression index
+  // on (((location::jsonb->'municipality'->>'id')::int)) instead.
   await knex.raw(`
     CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_fish_batches_review_exists
       ON fish_batches (fish_stocking_id)
@@ -49,7 +51,6 @@ exports.up = async function (knex) {
  */
 exports.down = async function (knex) {
   await knex.raw(`DROP INDEX CONCURRENTLY IF EXISTS idx_fish_batches_review_exists;`);
-  await knex.raw(`DROP INDEX CONCURRENTLY IF EXISTS idx_fish_stockings_location_gin;`);
   await knex.raw(`DROP INDEX CONCURRENTLY IF EXISTS idx_fish_stockings_created_by_freelancer;`);
   await knex.raw(`DROP INDEX CONCURRENTLY IF EXISTS idx_fish_stockings_stocking_customer_id;`);
   await knex.raw(`DROP INDEX CONCURRENTLY IF EXISTS idx_fish_stockings_tenant_id;`);

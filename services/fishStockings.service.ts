@@ -1293,7 +1293,10 @@ export default class FishStockingsService extends moleculer.Service {
     fishStockings: FishStocking[],
   ): Promise<Record<FishStocking['id'], FishBatch[]>> {
     const ids = fishStockings.map((fs) => fs.id);
-    const cacheKey = `fishStockings:batchesByStocking:${[...ids].sort((a, b) => a - b).join(',')}`;
+    // String-sort the IDs for the cache key — `fs.id` is typed as number but
+    // exposed via secure encoders elsewhere, and numeric subtraction on
+    // strings returns NaN. String sort is deterministic for both shapes.
+    const cacheKey = `fishStockings:batchesByStocking:${ids.map(String).sort().join(',')}`;
     const locals = (ctx.locals = ctx.locals || {});
     if (locals[cacheKey]) return locals[cacheKey];
 

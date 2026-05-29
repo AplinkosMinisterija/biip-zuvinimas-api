@@ -68,13 +68,15 @@ export type Setting<
   },
 })
 export default class SettingsService extends moleculer.Service {
-  // Settings are global, change a few times a year. fishStockings list calls
-  // this twice per request (status filter + status virtual field). Cache and
-  // invalidate on writes.
+  // Settings are global and change a few times a year. fishStockings list
+  // hits this twice per request (status filter + status virtual field).
+  // TTL kept short (5 min) as a safety net: `maxTimeForRegistration` is
+  // baked into status SQL templates, so a missed invalidation would produce
+  // wrong status filtering for up to TTL seconds.
   @Action({
     rest: 'GET /',
     auth: RestrictionType.DEFAULT,
-    cache: { ttl: 60 * 60 },
+    cache: { ttl: 5 * 60 },
   })
   async getSettings(ctx: Context<null, UserAuthMeta>) {
     const settings = await this.findEntities(ctx);
