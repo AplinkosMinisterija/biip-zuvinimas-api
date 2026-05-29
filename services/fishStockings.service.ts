@@ -240,23 +240,10 @@ export type FishStocking<
         virtual: true,
         default: () => [],
         async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
-          const fishBatches: FishBatch[] = await ctx.call('fishBatches.find', {
-            query: {
-              fishStocking: {
-                $in: fishStockings.map((fishStocking: FishStocking) => fishStocking.id),
-              },
-            },
-            populate: ['fishType', 'fishAge'],
-          });
-
-          const batchesByStocking: Record<FishStocking['id'], FishBatch[]> = {};
-
-          fishBatches.forEach((fishBatch) => {
-            batchesByStocking[fishBatch.fishStocking] ??= [];
-            batchesByStocking[fishBatch.fishStocking].push(fishBatch);
-          });
-
-          return fishStockings.map((fishStocking) => batchesByStocking[fishStocking.id]);
+          const batchesByStocking = await (
+            this as unknown as FishStockingsService
+          ).getBatchesByStocking(ctx, fishStockings);
+          return fishStockings.map((fishStocking) => batchesByStocking[fishStocking.id] || []);
         },
       },
       assignedTo: {
@@ -371,21 +358,9 @@ export type FishStocking<
         virtual: true,
         default: () => [],
         async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
-          const fishBatches: FishBatch[] = await ctx.call('fishBatches.find', {
-            query: {
-              fishStocking: {
-                $in: fishStockings.map((fishStocking: FishStocking) => fishStocking.id),
-              },
-            },
-          });
-
-          const batchesByStocking: Record<FishStocking['id'], FishBatch[]> = {};
-
-          fishBatches.forEach((fishBatch) => {
-            batchesByStocking[fishBatch.fishStocking] ??= [];
-            batchesByStocking[fishBatch.fishStocking].push(fishBatch);
-          });
-
+          const batchesByStocking = await (
+            this as unknown as FishStockingsService
+          ).getBatchesByStocking(ctx, fishStockings);
           const settings: Setting = await ctx.call('settings.getSettings');
           return fishStockings.map((fishStocking) =>
             getStatus(ctx, fishStocking, batchesByStocking[fishStocking.id], settings),
@@ -1308,6 +1283,37 @@ export default class FishStockingsService extends moleculer.Service {
     return ctx;
   }
 
+  // Shared fetch for batches keyed by fishStocking id, memoised on ctx.locals
+  // for the request. `batches` and `status` virtual fields both need the same
+  // data; without this they each issue an identical fishBatches.find on every
+  // list call.
+  @Method
+  async getBatchesByStocking(
+    ctx: Context,
+    fishStockings: FishStocking[],
+  ): Promise<Record<FishStocking['id'], FishBatch[]>> {
+    const ids = fishStockings.map((fs) => fs.id);
+    // String-sort the IDs for the cache key — `fs.id` is typed as number but
+    // exposed via secure encoders elsewhere, and numeric subtraction on
+    // strings returns NaN. String sort is deterministic for both shapes.
+    const cacheKey = `fishStockings:batchesByStocking:${ids.map(String).sort().join(',')}`;
+    const locals = (ctx.locals = ctx.locals || {});
+    if (locals[cacheKey]) return locals[cacheKey];
+
+    const fishBatches: FishBatch[] = await ctx.call('fishBatches.find', {
+      query: { fishStocking: { $in: ids } },
+      populate: ['fishType', 'fishAge'],
+    });
+
+    const batchesByStocking: Record<FishStocking['id'], FishBatch[]> = {};
+    fishBatches.forEach((fb) => {
+      batchesByStocking[fb.fishStocking] ??= [];
+      batchesByStocking[fb.fishStocking].push(fb);
+    });
+
+    locals[cacheKey] = batchesByStocking;
+    return batchesByStocking;
+  }
 
   @Event()
   async 'fishBatches.*'(ctx: Context<EntityChangedParams<FishBatch>>) {
