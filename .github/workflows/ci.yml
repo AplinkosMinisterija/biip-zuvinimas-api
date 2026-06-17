@@ -9,6 +9,11 @@ permissions: {}
 
 jobs:
   build-test:
+    # TODO(runner-migration): kept on ubuntu-latest for now. Moving to the
+    # self-hosted am-github-runner (ARC) requires the service-container ARC
+    # pattern (job in a container, reach postgres by service name) AND changing
+    # the hard-coded `localhost:5331` connection in package.json's `test` script
+    # — a dev-facing change. See biip-medziokle-api ci.yml for the target shape.
     name: Build and test
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -53,7 +58,7 @@ jobs:
 
   validate-docker-build:
     name: Validate if docker image builds
-    runs-on: ubuntu-latest
+    runs-on: am-github-runner
     timeout-minutes: 10
     permissions:
       contents: read
