@@ -623,8 +623,17 @@ export default class FishStockingsService extends moleculer.Service {
     // officer, who is also an admin — clear the assignment when the officer did
     // not actually take part. Without an inspector a completed stocking falls
     // back to "Įžuvinta" (FINISHED) per the status rule.
+    //
+    // Use a raw $set update: @moleculer/database coerces a null value for an
+    // object field that declares `properties` into `{}` during validation
+    // (validation.js _validateObject), which the admin UI then renders as
+    // "undefined undefined". A raw update skips that and writes a real NULL.
     if (ctx.params.inspector === null) {
-      return this.updateEntity(ctx, { ...ctx.params, inspector: null });
+      return this.updateEntity(
+        ctx,
+        { id: ctx.params.id, $set: { inspector: null } },
+        { raw: true },
+      );
     }
 
     if (ctx.params.inspector) {
