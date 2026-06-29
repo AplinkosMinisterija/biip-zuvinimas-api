@@ -148,7 +148,8 @@ export const isReviewed = (fishStocking: FishStocking, batches: FishBatch[]) => 
 
 export const isInspected = (fishStocking: FishStocking, batches: FishBatch[]) => {
   const reviewed = isReviewed(fishStocking, batches);
-  return reviewed && !isEmpty(fishStocking.signatures);
+  // "Patikrinta" requires an assigned inspector (officer) AND a signature.
+  return reviewed && !isEmpty(fishStocking.signatures) && !isEmpty(fishStocking.inspector);
 };
 
 export const isOngoing = (fishStocking: FishStocking, settings: Setting) => {
