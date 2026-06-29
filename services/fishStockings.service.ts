@@ -48,10 +48,19 @@ const Readable = require('stream').Readable;
 const BATCH_DATA_EXISTS_QUERY =
   'EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NOT NULL AND fb.deleted_at is NULL)';
 
+// A signature confirms the officer's participation. Matches the app's
+// isEmpty() check (a non-empty jsonb array) so a null / 'null' / '[]'
+// signature does not count.
+const HAS_SIGNATURE = `(signatures IS NOT NULL AND jsonb_typeof(signatures) = 'array' AND jsonb_array_length(signatures) > 0)`;
+
+// INSPECTED ("Patikrinta") requires an assigned inspector (officer) AND a
+// signature; otherwise a completed stocking is FINISHED ("Įžuvinta").
+const INSPECTED_QUERY = `(${HAS_SIGNATURE} AND inspector IS NOT NULL)`;
+
 const getStatusQueries = (maxTime: number) => ({
   [FishStockingStatus.CANCELED]: `canceled_at IS NOT NULL`,
-  [FishStockingStatus.INSPECTED]: `signatures IS NOT NULL AND ${BATCH_DATA_EXISTS_QUERY}`,
-  [FishStockingStatus.FINISHED]: `signatures IS NULL AND ${BATCH_DATA_EXISTS_QUERY}`,
+  [FishStockingStatus.INSPECTED]: `${INSPECTED_QUERY} AND ${BATCH_DATA_EXISTS_QUERY}`,
+  [FishStockingStatus.FINISHED]: `NOT ${INSPECTED_QUERY} AND ${BATCH_DATA_EXISTS_QUERY}`,
   [FishStockingStatus.ONGOING]: `NOW() < date_trunc('day',event_time + '00:00:00') + INTERVAL '${maxTime} days' AND NOW() > date_trunc('day',event_time + '00:00:00') AND NOT ${BATCH_DATA_EXISTS_QUERY} AND canceled_at is NULL`,
   [FishStockingStatus.UPCOMING]: `NOW() < date_trunc('day',event_time + '00:00:00') AND NOT ${BATCH_DATA_EXISTS_QUERY} AND canceled_at is NULL`,
   [FishStockingStatus.NOT_FINISHED]: `NOW() > date_trunc('day',event_time + '00:00:00') + INTERVAL '10 days' AND NOT ${BATCH_DATA_EXISTS_QUERY} AND canceled_at is NULL`,
@@ -339,6 +348,7 @@ export type FishStocking<
       inspector: {
         type: 'object',
         required: false,
+        nullable: true,
         properties: {
           firstName: 'string',
           lastName: 'string',
@@ -526,7 +536,8 @@ export default class FishStockingsService extends moleculer.Service {
           },
         },
       },
-      inspector: 'number|optional',
+      // null detaches the assigned inspector (officer).
+      inspector: { type: 'number', optional: true, nullable: true },
       canceledAt: 'string|optional',
     },
   })
@@ -607,6 +618,15 @@ export default class FishStockingsService extends moleculer.Service {
     }
 
     const fishStockingBeforeUpdate = await this.resolveEntities(ctx);
+
+    // Detach the assigned inspector (officer). Admins — including the assigned
+    // officer, who is also an admin — clear the assignment when the officer did
+    // not actually take part. Without an inspector a completed stocking falls
+    // back to "Įžuvinta" (FINISHED) per the status rule.
+    if (ctx.params.inspector === null) {
+      return this.updateEntity(ctx, { ...ctx.params, inspector: null });
+    }
+
     if (ctx.params.inspector) {
       const inspector: any = await ctx.call('auth.users.get', {
         id: ctx.params.inspector,
