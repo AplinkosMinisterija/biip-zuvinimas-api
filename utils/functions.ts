@@ -146,10 +146,17 @@ export const isReviewed = (fishStocking: FishStocking, batches: FishBatch[]) => 
   return !batchesDataNotFilled;
 };
 
+// The review form pre-fills the assigned inspector's name/organization with an
+// empty `signature`, so a non-empty array does not prove the inspector signed.
+// Only an entry carrying an actual signature value counts.
+const hasSignature = (fishStocking: FishStocking) =>
+  Array.isArray(fishStocking.signatures) &&
+  fishStocking.signatures.some((signature: any) => !isEmpty(signature?.signature));
+
 export const isInspected = (fishStocking: FishStocking, batches: FishBatch[]) => {
   const reviewed = isReviewed(fishStocking, batches);
-  // "Patikrinta" requires an assigned inspector (officer) AND a signature.
-  return reviewed && !isEmpty(fishStocking.signatures) && !isEmpty(fishStocking.inspector);
+  // "Patikrinta" requires an assigned inspector (officer) who actually signed.
+  return reviewed && !isEmpty(fishStocking.inspector) && hasSignature(fishStocking);
 };
 
 export const isOngoing = (fishStocking: FishStocking, settings: Setting) => {

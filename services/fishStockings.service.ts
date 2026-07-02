@@ -48,10 +48,17 @@ const Readable = require('stream').Readable;
 const BATCH_DATA_EXISTS_QUERY =
   'EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NOT NULL AND fb.deleted_at is NULL)';
 
-// A signature confirms the officer's participation. Matches the app's
-// isEmpty() check (a non-empty jsonb array) so a null / 'null' / '[]'
-// signature does not count.
-const HAS_SIGNATURE = `(signatures IS NOT NULL AND jsonb_typeof(signatures) = 'array' AND jsonb_array_length(signatures) > 0)`;
+// A signature confirms the assigned officer's participation. The review form
+// pre-fills the inspector's name/organization with an empty `signature`, so a
+// non-empty array is not enough — at least one entry must carry an actual
+// signature value.
+const HAS_SIGNATURE = `EXISTS (
+  SELECT 1
+  FROM jsonb_array_elements(
+    CASE WHEN jsonb_typeof(signatures) = 'array' THEN signatures ELSE '[]'::jsonb END
+  ) AS sig
+  WHERE COALESCE(sig->>'signature', '') <> ''
+)`;
 
 // INSPECTED ("Patikrinta") requires an assigned inspector (officer) AND a
 // signature; otherwise a completed stocking is FINISHED ("Įžuvinta").
