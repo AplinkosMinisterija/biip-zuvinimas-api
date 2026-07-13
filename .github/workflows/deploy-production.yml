@@ -15,4 +15,6 @@ jobs:
     with:
       environment: Production
       docker-image: ghcr.io/AplinkosMinisterija/biip-zuvinimas-api
+      cache-from: type=registry,ref=ghcr.io/aplinkosministerija/biip-zuvinimas-api:buildcache
+      cache-to: type=registry,ref=ghcr.io/aplinkosministerija/biip-zuvinimas-api:buildcache,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true
       enable-sentry: true
