@@ -274,7 +274,9 @@ export default class AuthService extends moleculer.Service {
     const oldTenantUser = ctx.params.oldData as TenantUser;
 
     const roleToAuthGroupRole = (role: TenantUserRole): AuthGroupRole =>
-      role === TenantUserRole.OWNER ? AuthGroupRole.ADMIN : AuthGroupRole.USER;
+      role === TenantUserRole.OWNER || role === TenantUserRole.USER_ADMIN
+        ? AuthGroupRole.ADMIN
+        : AuthGroupRole.USER;
 
     const authRole = roleToAuthGroupRole(tenantUser.role);
     const oldAuthRole = roleToAuthGroupRole(oldTenantUser.role);
