@@ -66,20 +66,24 @@ export type FishStockingPhoto<
       url: {
         virtual: true,
         get({ entity, ctx }: FieldHookCallback) {
-          // Use the direct public URL (no signature), not a presigned URL.
-          // The MinIO `fishStockingPhotos/` prefix is configured for anonymous
-          // s3:GetObject (verified: direct curl returns NoSuchKey on a missing
-          // object instead of 403), so signed URLs add nothing but a failure
-          // mode — the old code passed `requestDate: new Date().toDateString()`
-          // which anchored the signing timestamp to today's 00:00, so the URL
-          // would die mid-day and the UI showed broken images plus a spinner
-          // (S3 returned `<Code>Forbidden</Code><Message>Request has expired
-          // </Message>`). publicUrl has no expiry — photos are visible to
-          // USER and ADMIN whenever they open the stocking page. Mirror of
-          // how biip-medziokle-api / biip-gyvunai-api serve their photos.
-          return ctx.call('minio.publicUrl', {
+          // Must be a presigned URL. On staging/production MINIO_ENDPOINT is
+          // cdn.biip.lt, which fronts EMC ECS (VITC) — objects there are
+          // private, so an unsigned URL returns 403 AccessDenied for every
+          // photo (a missing object still returns 404 NoSuchKey, which is NOT
+          // proof of anonymous read access).
+          return ctx.call('minio.presignedGetObject', {
             bucketName: process.env.MINIO_BUCKET,
             objectName: this.getObjectName(entity),
+            // 24h: comfortably outlives any Redis-cached (1h TTL) response
+            // that embeds the URL, while still expiring leaked links.
+            expires: 60 * 60 * 24,
+            // moleculer-minio passes all args positionally into minio-js,
+            // whose validation rejects undefined — so reqParams and
+            // requestDate are effectively REQUIRED. requestDate must carry
+            // the time of day: toISOString(), never toDateString() (that
+            // anchors the signature to 00:00 and the URL dies mid-day).
+            reqParams: {},
+            requestDate: new Date().toISOString(),
           });
         },
       },

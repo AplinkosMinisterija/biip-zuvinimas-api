@@ -1,7 +1,7 @@
 'use strict';
 
-import Moleculer, { Context } from 'moleculer';
-import { Action, Service } from 'moleculer-decorators';
+import Moleculer from 'moleculer';
+import { Service } from 'moleculer-decorators';
 // @ts-ignore
 import MinioMixin from 'moleculer-minio';
 
@@ -47,39 +47,6 @@ import MinioMixin from 'moleculer-minio';
   },
 })
 export default class MinioService extends Moleculer.Service {
-  @Action({
-    visibility: 'protected',
-    params: {
-      bucketName: 'string',
-      objectName: 'string',
-    },
-  })
-  publicUrl(
-    ctx: Context<{
-      bucketName: string;
-      objectName: string;
-    }>,
-  ) {
-    // Drop the port segment for the conventional HTTP(S) ports so the URL
-    // matches what the CDN/Caddy in front of MinIO actually serves on
-    // staging/production (`https://staging-cdn.biip.lt/<bucket>/<object>`,
-    // no `:443` suffix). Mirror of biip-medziokle-api / biip-gyvunai-api.
-    let portString = '';
-    if (![80, 443].includes(Number(this.client.port))) {
-      portString = `:${this.client.port}`;
-    }
-    return (
-      this.client.protocol +
-      '//' +
-      this.client.host +
-      portString +
-      '/' +
-      ctx.params.bucketName +
-      '/' +
-      ctx.params.objectName
-    );
-  }
-
   async started() {
     const bucketExists: boolean = await this.actions.bucketExists({
       bucketName: process.env.MINIO_BUCKET,
