@@ -108,4 +108,62 @@ describe('publishing.fishStockings excludes soft-deleted batches', () => {
       expect(Array.isArray(row.fishes)).toBe(true);
     }
   });
+
+  // `fishStockings.getFishCount` sums fish_batches with raw SQL instead of going
+  // through the view, so it carried the same missing filter and kept publishing
+  // superseded revisions. Production served 96,045,483 fish against a real
+  // 95,940,308. Left unfixed it would also disagree with /uetk/statistics, which
+  // reads the now-corrected view.
+  it('counts a reviewed batch once in the public statistics, not once per revision', async () => {
+    const usersService: any = apiHelper.broker.getLocalService('users');
+    const adapter: any = await usersService.getAdapter();
+    const knex = adapter.client;
+
+    const before = await request(apiService.server).get('/zuvinimasnew/api/public/statistics');
+    expect(before.status).toBe(200);
+    const baseline = before.body.fish_count;
+
+    // A reviewed stocking carrying one live batch and one superseded revision of
+    // it — exactly the shape an edit after review leaves behind.
+    const [stocking] = await knex('fishStockings')
+      .insert({
+        eventTime: new Date(Date.now() - 30 * 86400000),
+        reviewTime: new Date(Date.now() - 29 * 86400000),
+        location: JSON.stringify({
+          cadastral_id: '99001',
+          name: 'Ghost batch pond',
+          municipality: { id: 1, name: 'Test municipality' },
+        }),
+      })
+      .returning('id');
+    const stockingId = stocking.id ?? stocking;
+
+    await knex('fishBatches').insert([
+      {
+        fishStockingId: stockingId,
+        fishTypeId: apiHelper.fishTypeId,
+        fishAgeId: apiHelper.fishAgeId,
+        amount: 5000,
+        reviewAmount: 5000,
+        deletedAt: null,
+      },
+      {
+        fishStockingId: stockingId,
+        fishTypeId: apiHelper.fishTypeId,
+        fishAgeId: apiHelper.fishAgeId,
+        amount: 5000,
+        reviewAmount: 5000,
+        deletedAt: new Date(Date.now() - 20 * 86400000),
+      },
+    ]);
+
+    const after = await request(apiService.server).get('/zuvinimasnew/api/public/statistics');
+    expect(after.status).toBe(200);
+
+    // The live batch counts, the superseded one does not.
+    expect(after.body.fish_count).toBe(baseline + 5000);
+
+    await knex('fishBatches').where('fishStockingId', stockingId).delete();
+    await knex('fishStockings').where('id', stockingId).delete();
+  });
 });

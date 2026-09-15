@@ -12,9 +12,11 @@
  * with 10 identical "sterkai" entries while the database held a single batch,
  * which also broke the card layout on zuvys.biip.lt.
  *
- * `fishes` is additionally coalesced to an empty array: filtering the ghosts out
- * makes a NULL aggregate reachable for a stocking whose batches were all
- * deleted, and the only consumer iterates the value without a guard.
+ * Both aggregates are additionally coalesced to an empty array. A NULL was
+ * already reachable for a stocking with no batch rows at all, and filtering the
+ * ghosts out adds a second way in — a stocking whose batches were all deleted.
+ * The consumer of `fishes` iterates it, and the consumer of `fish_batches`
+ * would reduce over it if the view's EXISTS guard were ever relaxed.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
@@ -112,7 +114,7 @@ exports.up = async function (knex) {
             s.review_time,
             s.geom,
             s.location::json,
-            fb.fish_batches
+            COALESCE(fb.fish_batches, '[]'::json) AS fish_batches
           FROM
             public.fish_stockings s
             LEFT JOIN fb ON fb.fish_stocking_id = s.id
