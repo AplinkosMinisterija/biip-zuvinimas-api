@@ -1104,8 +1104,14 @@ export default class FishStockingsService extends moleculer.Service {
     const adapter = await this.getAdapter(ctx);
     const queries = getStatusQueries(0);
     const knex = adapter.client;
+    // Both soft-delete filters matter. Editing a stocking soft-deletes the old
+    // batch row and inserts a replacement, so without them this sums every
+    // superseded revision on top of the real one — production published 105,175
+    // fish that were never stocked. `fishStockingsCompleted`, which feeds
+    // /uetk/statistics, already scopes itself the same way; the two published
+    // totals have to agree.
     let response = await knex.raw(
-      `select sum(fish_batches.review_amount) from "fish_batches", "fish_stockings" WHERE fish_batches.fish_stocking_id = fish_stockings.id AND (${
+      `select sum(fish_batches.review_amount) from "fish_batches", "fish_stockings" WHERE fish_batches.fish_stocking_id = fish_stockings.id AND fish_batches.deleted_at IS NULL AND fish_stockings.deleted_at IS NULL AND (${
         queries[FishStockingStatus.FINISHED]
       } OR ${queries[FishStockingStatus.INSPECTED]})`,
     );
