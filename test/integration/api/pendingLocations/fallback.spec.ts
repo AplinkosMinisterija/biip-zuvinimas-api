@@ -55,4 +55,62 @@ describe('locations fallback chain', () => {
     expect(result[0]).toMatchObject({ name: 'Šmulžiogis', source: 'GRPK_CANDIDATE' });
     expect(result[0].cadastral_id).toBeNull();
   });
+
+  it('returns UETK features and does not fall through to GRPK when UETK has features at the point', async () => {
+    // Temporarily override fetch to return a non-empty UETK river feature
+    const originalFetch = global.fetch;
+    global.fetch = ((url: string | URL, init?: RequestInit) => {
+      if (`${url}`.startsWith(process.env.GEO_SERVER as string)) {
+        // Return UETK feature if requesting rivers
+        if (`${url}`.includes('TYPENAME=rivers')) {
+          return Promise.resolve({
+            json: async () => ({
+              features: [
+                {
+                  type: 'Feature',
+                  properties: {
+                    kadastro_id: 'uetk-river-001',
+                    pavadinimas: 'Neris',
+                    kategorija: 1, // translates to 'Upė'
+                    st_area: 15000,
+                    ilgis_uetk: 510,
+                  },
+                  geometry: { type: 'Point', coordinates: [329527, 6132126] },
+                },
+              ],
+            }),
+          }) as ReturnType<typeof fetch>;
+        }
+        // Empty lakes response
+        if (`${url}`.includes('TYPENAME=lakes_ponds')) {
+          return Promise.resolve({
+            json: async () => ({ features: [] }),
+          }) as ReturnType<typeof fetch>;
+        }
+        // For municipalities WFS call, delegate to original fetch
+        if (`${url}`.includes('TYPENAME=municipalities')) {
+          return originalFetch(url, init);
+        }
+      }
+      return originalFetch(url, init);
+    }) as typeof fetch;
+
+    try {
+      const result: Array<{ name: string; source: string; cadastral_id: string; category: string }> =
+        await apiService.broker.call('locations.search', { geom });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        name: 'Neris',
+        source: 'UETK',
+        cadastral_id: 'uetk-river-001',
+        category: 'Upė',
+      });
+      // Verify that the fallback to GRPK_CANDIDATE did not occur — the UETK
+      // result short-circuits the chain.
+      expect(result.some((item) => item.source === 'GRPK_CANDIDATE')).toBe(false);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });
