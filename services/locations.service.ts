@@ -307,6 +307,23 @@ export default class LocationsService extends moleculer.Service {
     };
   }
 
+  @Action({
+    params: { x: 'number|convert', y: 'number|convert' },
+    cache: { ttl: 24 * 60 * 60 },
+  })
+  async getMunicipalityFromPointXY(ctx: Context<{ x: number; y: number }>) {
+    return this.getMunicipalityFromPoint({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'Point', coordinates: [ctx.params.x, ctx.params.y] },
+        },
+      ],
+    } as GeomFeatureCollection);
+  }
+
   @Method
   async getMunicipalityFromPoint(geom: GeomFeatureCollection) {
     const box = getBox(geom);
