@@ -190,9 +190,7 @@ export default class PendingLocationsService extends moleculer.Service {
     auth: RestrictionType.ADMIN,
     params: { id: 'number|convert', confirmDistinct: 'boolean|optional|convert' },
   })
-  async approve(
-    ctx: Context<{ id: number; confirmDistinct?: boolean }>,
-  ): Promise<PendingLocation> {
+  async approve(ctx: Context<{ id: number; confirmDistinct?: boolean }>): Promise<PendingLocation> {
     const row: PendingLocation = await this.resolveEntities(
       ctx,
       { id: ctx.params.id },

@@ -5,8 +5,8 @@
 // intentional, it is the only thing that proves the whole chain works.
 
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
-import { ApiHelper } from '../../../helpers/api';
 import { GrpkCluster, GrpkLayer } from '../../../../modules/grpk';
+import { ApiHelper } from '../../../helpers/api';
 
 const request = require('supertest');
 
@@ -72,7 +72,12 @@ function syntheticCluster(name: string, x: number, y: number): GrpkCluster {
     topIds: ['synthetic-top-id'],
     geom: {
       type: 'MultiLineString',
-      coordinates: [[[x, y], [x + 50, y + 50]]],
+      coordinates: [
+        [
+          [x, y],
+          [x + 50, y + 50],
+        ],
+      ],
     },
   };
 }
@@ -294,9 +299,7 @@ describe('approve — duplicate-name guard', () => {
       .expect(409);
     expect(res.body.type).toBe('DUPLICATE_NAME_CANDIDATES');
     expect(res.body.data.candidates).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: rowB.id, name, status: 'REQUESTED' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ id: rowB.id, name, status: 'REQUESTED' })]),
     );
 
     // Refused, so no identity was minted for rowA.
