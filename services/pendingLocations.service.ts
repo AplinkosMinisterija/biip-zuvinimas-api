@@ -48,15 +48,23 @@ export type PendingLocation = Table<Fields, Record<string, never>, never, keyof 
   mixins: [
     // Mutation goes exclusively through request/approve/reject/linkToUetk —
     // each enforces its own transition + exclusion-constraint rules. The
-    // auto-generated create/update/remove actions would otherwise let any
-    // caller write a row (or flip status to APPROVED) directly through the
-    // HTTP gateway, bypassing all of that (mappingPolicy:'all' + autoAliases
-    // expose every non-disabled action). list/find/get/count stay on so
-    // USER/ADMIN can browse/track requests.
-    DbConnection({ createActions: { create: false, update: false, remove: false } }),
+    // auto-generated create/update/remove/createMany actions would otherwise
+    // let any caller write a row (or flip status to APPROVED, or mint a
+    // fabricated cadastralId) directly — over HTTP via autoAliases, or from
+    // any other broker node with no gateway in the path at all. Disabling
+    // them removes the action entirely rather than merely gating it.
+    DbConnection({
+      createActions: { create: false, update: false, remove: false, createMany: false },
+    }),
     PostgisMixin({ srid: 3346 }),
   ],
   settings: {
+    // Anything below that doesn't set its own per-action `auth` (list, find,
+    // get, count, resolveAtPoint, proposeAtPoint) falls back to this —
+    // ADMIN, not DEFAULT. Per-action `auth` wins over this (see
+    // api.service.ts:getRestrictionType), so `request` stays USER and the
+    // ADMIN actions are unaffected.
+    auth: RestrictionType.ADMIN,
     fields: {
       id: { type: 'number', primaryKey: true, secure: true },
       name: 'string|required',
@@ -70,8 +78,19 @@ export type PendingLocation = Table<Fields, Record<string, never>, never, keyof 
       // field below, but it turns this into a malformed array literal against
       // a real text[] column. `type: 'any'` skips that serialization and lets
       // the plain JS array reach knex, which the pg driver serializes
-      // natively for text[].
-      grpkTopIds: { type: 'any', columnType: 'array' },
+      // natively for text[]. `type: 'any'` also skips fastest-validator's own
+      // array check, so re-add it explicitly: the custom validator receives
+      // `{ value, ... }` (@moleculer/database's `_callCustomFunction` calls it
+      // with one object arg, not the bare value — confirmed against
+      // moleculer-postgis's own `_geomValidateFn` and against
+      // node_modules/@moleculer/database/src/validation.js:287-298).
+      grpkTopIds: {
+        type: 'any',
+        columnType: 'array',
+        validate: ({ value }: { value: unknown }) =>
+          (Array.isArray(value) && value.every((v) => typeof v === 'string')) ||
+          'grpkTopIds must be an array of strings',
+      },
       grpkLayer: 'number',
       municipality: { type: 'object', columnType: 'json' },
       // GRPK often merges a river's area mapping and its centre-line mapping
@@ -163,7 +182,7 @@ export default class PendingLocationsService extends moleculer.Service {
       x,
       y,
     });
-    return this.createFromCluster(ctx, cluster, municipality);
+    return this.createFromCluster(ctx, x, y, cluster, municipality);
   }
 
   @Action({
@@ -172,7 +191,11 @@ export default class PendingLocationsService extends moleculer.Service {
     params: { id: 'number|convert' },
   })
   async approve(ctx: Context<{ id: number }>): Promise<PendingLocation> {
-    const row: PendingLocation = await this.resolveEntities(ctx, { id: ctx.params.id });
+    const row: PendingLocation = await this.resolveEntities(
+      ctx,
+      { id: ctx.params.id },
+      { throwIfNotExist: true },
+    );
     if (row.status !== PendingLocationStatus.REQUESTED) {
       throw new moleculer.Errors.ValidationError('Only a REQUESTED location can be approved');
     }
@@ -189,47 +212,72 @@ export default class PendingLocationsService extends moleculer.Service {
     params: { id: 'number|convert' },
   })
   async reject(ctx: Context<{ id: number }>): Promise<PendingLocation> {
+    const row: PendingLocation = await this.resolveEntities(
+      ctx,
+      { id: ctx.params.id },
+      { throwIfNotExist: true },
+    );
+    // Mirrors approve's guard: an already-APPROVED row has a minted
+    // cadastralId in play (possibly already on live stockings). Rejecting it
+    // would drop it out of the exclusion constraint's WHERE, letting the same
+    // water body be requested again and minted a second identity.
+    if (row.status !== PendingLocationStatus.REQUESTED) {
+      throw new moleculer.Errors.ValidationError('Only a REQUESTED location can be rejected');
+    }
     return this.updateEntity(ctx, {
-      id: ctx.params.id,
+      id: row.id,
       status: PendingLocationStatus.REJECTED,
     });
   }
 
   /**
-   * The exit path: AAA registered the object in UETK, so every stocking that
-   * carries the reserved id is rewritten to the real one and the row retires.
+   * The exit path: AAA registered the object in UETK. This service only
+   * retires its own row and announces the fact — it never reaches into
+   * fish_stockings directly. biip-zvejyba-api has its own database and could
+   * never be reached by an in-service UPDATE here, so every consumer
+   * (fishStockings included) rewrites its own table from the
+   * `pendingLocations.registeredInUetk` event instead.
    */
   @Action({
     rest: 'POST /:id/linkToUetk',
     auth: RestrictionType.ADMIN,
     params: { id: 'number|convert', uetkCadastralId: 'string' },
   })
-  async linkToUetk(ctx: Context<{ id: number; uetkCadastralId: string }>) {
-    const row: PendingLocation = await this.resolveEntities(ctx, { id: ctx.params.id });
+  async linkToUetk(
+    ctx: Context<{ id: number; uetkCadastralId: string }>,
+  ): Promise<PendingLocation> {
+    const row: PendingLocation = await this.resolveEntities(
+      ctx,
+      { id: ctx.params.id },
+      { throwIfNotExist: true },
+    );
     if (!row.cadastralId) {
       throw new moleculer.Errors.ValidationError('Location has no reserved cadastral id');
     }
-    const adapter = await this.getAdapter(ctx);
-    const knex = adapter.client;
     const { uetkCadastralId } = ctx.params;
 
-    const updated = await knex.transaction(async (trx: any) => {
-      const result = await trx.raw(
-        `UPDATE fish_stockings
-            SET location = jsonb_set(location::jsonb, '{cadastral_id}', to_jsonb(?::text))
-          WHERE location::jsonb->>'cadastral_id' = ?`,
-        [uetkCadastralId, row.cadastralId],
-      );
-      await trx('pending_locations')
-        .where({ id: row.id })
-        .update({
-          uetk_cadastral_id: uetkCadastralId,
-          status: PendingLocationStatus.REGISTERED_IN_UETK,
-        });
-      return result.rowCount as number;
+    const updatedRow: PendingLocation = await this.updateEntity(ctx, {
+      id: row.id,
+      uetkCadastralId,
+      status: PendingLocationStatus.REGISTERED_IN_UETK,
     });
 
-    return { updated };
+    // Fire-and-forget by design: a real second consumer (biip-zvejyba-api) is
+    // a separate service reached over the broker's transporter, and this
+    // action must not block its own response on a remote handler completing.
+    // Local handlers (fishStockings, in this repo) still run to completion,
+    // just not before this promise resolves — callers that depend on the
+    // side effect must poll.
+    ctx
+      .emit('pendingLocations.registeredInUetk', {
+        reservedCadastralId: row.cadastralId,
+        uetkCadastralId,
+      })
+      .catch((err: Error) =>
+        this.logger.error('Failed to emit pendingLocations.registeredInUetk', err),
+      );
+
+    return updatedRow;
   }
 
   async findRowAtPoint(
@@ -255,6 +303,8 @@ export default class PendingLocationsService extends moleculer.Service {
 
   async createFromCluster(
     ctx: Context,
+    x: number,
+    y: number,
     cluster: GrpkCluster,
     municipality: Municipality,
   ): Promise<PendingLocation> {
@@ -270,13 +320,25 @@ export default class PendingLocationsService extends moleculer.Service {
     } catch (err) {
       // The overlap exclusion constraint fired: another row already represents
       // this water body (a click far along a long object produces a partial,
-      // overlapping cluster). Reuse that row rather than failing the user.
-      if (`${(err as Error).message}`.includes('pending_locations_no_overlap')) {
-        const rows: PendingLocation[] = await ctx.call('pendingLocations.find', {
-          query: { name: cluster.name },
-        });
-        if (rows.length) return rows[0];
+      // overlapping cluster). Matching by name alone is not enough — the
+      // constraint deliberately allows two distinct same-name rivers that
+      // don't overlap, so a plain `find({name})` can hand back the WRONG
+      // one's row, or a REJECTED/REGISTERED_IN_UETK row as if it were live.
+      // Re-run the same point-proximity lookup `request` already trusts
+      // instead: it's scoped to this exact point AND to live statuses.
+      const pgErr = err as { code?: string; constraint?: string };
+      const isOverlapViolation =
+        pgErr.code === '23P01' || pgErr.constraint === 'pending_locations_no_overlap';
+      if (isOverlapViolation) {
+        const existing = await this.findRowAtPoint(ctx, x, y, [
+          PendingLocationStatus.REQUESTED,
+          PendingLocationStatus.APPROVED,
+        ]);
+        if (existing) return existing;
       }
+      // Either a different failure entirely, or a genuine anomaly — an
+      // overlap violation with no live row at this exact point. Don't
+      // swallow it.
       throw err;
     }
   }
