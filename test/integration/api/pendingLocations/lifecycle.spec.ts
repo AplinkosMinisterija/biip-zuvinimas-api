@@ -266,6 +266,151 @@ describe('createFromCluster overlap-constraint fallback', () => {
   });
 });
 
+describe('approve — duplicate-name guard', () => {
+  const service = () => apiHelper.broker.getLocalService('pendingLocations') as any;
+
+  async function requestedRow(name: string, x: number, y: number) {
+    return service().createEntity(null, {
+      name,
+      status: 'REQUESTED',
+      grpkTopIds: ['synthetic'],
+      grpkLayer: GrpkLayer.WATERCOURSES,
+      municipality: { id: 1, name: 'Test' },
+      geom: syntheticCluster(name, x, y).geom,
+    });
+  }
+
+  it('refuses approval while another live row shares its name, naming the other candidate', async () => {
+    const name = 'Dubliuota upė A';
+    const rowA = await requestedRow(name, 410000, 6010000);
+    // Far enough away that the exclusion constraint's bbox overlap check
+    // does not fire — this row is a legal, independent REQUESTED row today,
+    // which is exactly the case the constraint cannot see.
+    const rowB = await requestedRow(name, 620000, 6180000);
+
+    const res = await request(apiService.server)
+      .post(`${API}/pendingLocations/${rowA.id}/approve`)
+      .set('Authorization', `Bearer ${apiHelper.admin.token}`)
+      .expect(409);
+    expect(res.body.type).toBe('DUPLICATE_NAME_CANDIDATES');
+    expect(res.body.data.candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: rowB.id, name, status: 'REQUESTED' }),
+      ]),
+    );
+
+    // Refused, so no identity was minted for rowA.
+    const stillRequested = await apiService.broker.call('pendingLocations.resolve', {
+      id: rowA.id,
+    });
+    expect((stillRequested as { status: string }).status).toBe('REQUESTED');
+  });
+
+  it('approves despite a same-name row when confirmDistinct: true is passed', async () => {
+    const name = 'Dubliuota upė B';
+    const rowA = await requestedRow(name, 420000, 6015000);
+    await requestedRow(name, 630000, 6185000);
+
+    const res = await request(apiService.server)
+      .post(`${API}/pendingLocations/${rowA.id}/approve`)
+      .set('Authorization', `Bearer ${apiHelper.admin.token}`)
+      .send({ confirmDistinct: true })
+      .expect(200);
+    expect(res.body.status).toBe('APPROVED');
+    expect(res.body.cadastralId).toMatch(/^NR-\d{6}$/);
+  });
+
+  it('approves normally when no other row shares its name (guard does not misfire on the normal path)', async () => {
+    const rowC = await requestedRow('Unikali upė', 440000, 6020000);
+
+    const res = await request(apiService.server)
+      .post(`${API}/pendingLocations/${rowC.id}/approve`)
+      .set('Authorization', `Bearer ${apiHelper.admin.token}`)
+      .expect(200);
+    expect(res.body.status).toBe('APPROVED');
+    expect(res.body.cadastralId).toMatch(/^NR-\d{6}$/);
+  });
+});
+
+describe('linkToUetk — re-linking guard', () => {
+  const service = () => apiHelper.broker.getLocalService('pendingLocations') as any;
+
+  async function approvedRow(name: string, x: number, y: number) {
+    const row = await service().createEntity(null, {
+      name,
+      status: 'REQUESTED',
+      grpkTopIds: ['synthetic'],
+      grpkLayer: GrpkLayer.WATERCOURSES,
+      municipality: { id: 1, name: 'Test' },
+      geom: syntheticCluster(name, x, y).geom,
+    });
+    const res = await request(apiService.server)
+      .post(`${API}/pendingLocations/${row.id}/approve`)
+      .set('Authorization', `Bearer ${apiHelper.admin.token}`)
+      .expect(200);
+    return res.body as { id: number; name: string; cadastralId: string };
+  }
+
+  it('accepts re-calling linkToUetk with the same uetkCadastralId (idempotent retry)', async () => {
+    const row = await approvedRow('Pakartotina upė A', 450000, 6025000);
+    await apiHelper.createCompletedFishStocking({
+      location: {
+        cadastral_id: row.cadastralId,
+        name: row.name,
+        municipality: { id: 1, name: 'Test' },
+      },
+    });
+
+    await request(apiService.server)
+      .post(`${API}/pendingLocations/${row.id}/linkToUetk`)
+      .set('Authorization', `Bearer ${apiHelper.admin.token}`)
+      .send({ uetkCadastralId: '10088888' })
+      .expect(200);
+    await waitFor(async () => (await apiHelper.countStockingsByCadastralId('10088888')) === 1);
+
+    const retry = await request(apiService.server)
+      .post(`${API}/pendingLocations/${row.id}/linkToUetk`)
+      .set('Authorization', `Bearer ${apiHelper.admin.token}`)
+      .send({ uetkCadastralId: '10088888' })
+      .expect(200);
+    expect(retry.body.status).toBe('REGISTERED_IN_UETK');
+    expect(retry.body.uetkCadastralId).toBe('10088888');
+    // The retry re-emits, but there was nothing left to rewrite — still
+    // exactly one stocking on the uetk id, none duplicated or lost.
+    expect(await apiHelper.countStockingsByCadastralId('10088888')).toBe(1);
+  });
+
+  it('refuses re-linking to a DIFFERENT uetkCadastralId, leaving fish_stockings on the first id', async () => {
+    const row = await approvedRow('Pakartotina upė B', 460000, 6030000);
+    await apiHelper.createCompletedFishStocking({
+      location: {
+        cadastral_id: row.cadastralId,
+        name: row.name,
+        municipality: { id: 1, name: 'Test' },
+      },
+    });
+
+    await request(apiService.server)
+      .post(`${API}/pendingLocations/${row.id}/linkToUetk`)
+      .set('Authorization', `Bearer ${apiHelper.admin.token}`)
+      .send({ uetkCadastralId: '10077777' })
+      .expect(200);
+    await waitFor(async () => (await apiHelper.countStockingsByCadastralId('10077777')) === 1);
+
+    await request(apiService.server)
+      .post(`${API}/pendingLocations/${row.id}/linkToUetk`)
+      .set('Authorization', `Bearer ${apiHelper.admin.token}`)
+      .send({ uetkCadastralId: '10066666' })
+      .expect(422);
+
+    // No event handler runs for a refused call — give it a beat regardless,
+    // then confirm fish_stockings was never touched by the second attempt.
+    await new Promise((r) => setTimeout(r, 100));
+    expect(await apiHelper.countStockingsByCadastralId('10077777')).toBe(1);
+    expect(await apiHelper.countStockingsByCadastralId('10066666')).toBe(0);
+  });
+});
+
 describe('write actions are disabled outright, not merely gated', () => {
   // create/update/remove/createMany are removed from the schema entirely
   // (DbConnection({ createActions: {...} })), so even a direct broker call —

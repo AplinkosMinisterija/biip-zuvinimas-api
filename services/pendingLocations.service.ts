@@ -188,9 +188,11 @@ export default class PendingLocationsService extends moleculer.Service {
   @Action({
     rest: 'POST /:id/approve',
     auth: RestrictionType.ADMIN,
-    params: { id: 'number|convert' },
+    params: { id: 'number|convert', confirmDistinct: 'boolean|optional|convert' },
   })
-  async approve(ctx: Context<{ id: number }>): Promise<PendingLocation> {
+  async approve(
+    ctx: Context<{ id: number; confirmDistinct?: boolean }>,
+  ): Promise<PendingLocation> {
     const row: PendingLocation = await this.resolveEntities(
       ctx,
       { id: ctx.params.id },
@@ -199,6 +201,28 @@ export default class PendingLocationsService extends moleculer.Service {
     if (row.status !== PendingLocationStatus.REQUESTED) {
       throw new moleculer.Errors.ValidationError('Only a REQUESTED location can be approved');
     }
+
+    if (!ctx.params.confirmDistinct) {
+      // Approve is where an identity is actually minted, so it is the last
+      // point that can still catch this: the exclusion constraint only fires
+      // on bounding-box overlap, so a same-name row far enough away (e.g. two
+      // requests at opposite ends of a long watercourse GRPK/UETK doesn't
+      // cover) passes it as two independent REQUESTED rows, and approving
+      // both would mint two identities for one real water body. Two
+      // genuinely distinct rivers sharing a name and sitting apart are legal
+      // — the constraint deliberately allows them — so this is a confirmable
+      // warning, not a hard block; confirmDistinct overrides it deliberately.
+      const candidates = await this.findDuplicateNameCandidates(ctx, row.id, row.name);
+      if (candidates.length) {
+        throw new moleculer.Errors.MoleculerClientError(
+          `Another live location named "${row.name}" already exists`,
+          409,
+          'DUPLICATE_NAME_CANDIDATES',
+          { candidates },
+        );
+      }
+    }
+
     return this.updateEntity(ctx, {
       id: row.id,
       status: PendingLocationStatus.APPROVED,
@@ -256,6 +280,25 @@ export default class PendingLocationsService extends moleculer.Service {
     }
     const { uetkCadastralId } = ctx.params;
 
+    // Calling this again with the SAME id is the documented recovery path
+    // when the earlier emit failed to reach a consumer — allow it through
+    // unchanged, re-emitting below as usual. A DIFFERENT id (an admin
+    // correcting a clerical error) is not safe to allow: the event below
+    // uses `row.cadastralId` (the reserved NR- id) as its match key, but the
+    // first call's fishStockings handler already rewrote every row away from
+    // that key. A second rewrite would therefore silently match nothing,
+    // leaving fish_stockings on the wrong UETK id while this row shows the
+    // corrected one. Refuse rather than corrupt that silently — a genuine
+    // correction needs its own path, not a second linkToUetk call.
+    if (
+      row.status === PendingLocationStatus.REGISTERED_IN_UETK &&
+      row.uetkCadastralId !== uetkCadastralId
+    ) {
+      throw new moleculer.Errors.ValidationError(
+        `Location is already registered in UETK as ${row.uetkCadastralId}; correcting to ${uetkCadastralId} is not supported through this action`,
+      );
+    }
+
     const updatedRow: PendingLocation = await this.updateEntity(ctx, {
       id: row.id,
       uetkCadastralId,
@@ -299,6 +342,29 @@ export default class PendingLocationsService extends moleculer.Service {
     );
     if (!rows.length) return null;
     return this.resolveEntities(ctx, { id: rows[0].id });
+  }
+
+  /**
+   * Other live (REQUESTED/APPROVED, not deleted) rows sharing this row's
+   * name, compared case-insensitively. Used by `approve` — see the guard
+   * there for why proximity/geometry checks can't cover this case.
+   */
+  async findDuplicateNameCandidates(
+    ctx: Context,
+    id: number,
+    name: string,
+  ): Promise<Array<{ id: number; name: string; status: PendingLocationStatus }>> {
+    const adapter = await this.getAdapter(ctx);
+    const knex = adapter.client;
+    const { rows } = await knex.raw(
+      `SELECT id, name, status FROM pending_locations
+        WHERE deleted_at IS NULL
+          AND status = ANY(?)
+          AND id != ?
+          AND lower(name) = lower(?)`,
+      [[PendingLocationStatus.REQUESTED, PendingLocationStatus.APPROVED], id, name],
+    );
+    return rows;
   }
 
   async createFromCluster(
