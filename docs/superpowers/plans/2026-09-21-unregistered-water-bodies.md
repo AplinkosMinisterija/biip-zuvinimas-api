@@ -632,7 +632,7 @@ export default class PendingLocationsService extends moleculer.Service {
     return {
       name: cluster.name,
       grpkTopIds: cluster.topIds,
-      grpkLayer: cluster.layer,
+      grpkLayer: cluster.primaryLayer,
     };
   }
 
@@ -648,6 +648,23 @@ export default class PendingLocationsService extends moleculer.Service {
       PendingLocationStatus.APPROVED,
     ]);
     if (existing) return existing;
+
+    // The exclusion constraint only guards REQUESTED/APPROVED rows, so a row
+    // already retired into UETK no longer blocks a duplicate at the database
+    // level. The normal flow never gets here for such a point — the caller
+    // hits UETK first — but this action is reachable directly, so the guard
+    // belongs here rather than in the caller.
+    const retired = await this.findRowAtPoint(ctx, x, y, [
+      PendingLocationStatus.REGISTERED_IN_UETK,
+    ]);
+    if (retired) {
+      throw new moleculer.Errors.MoleculerClientError(
+        `Water body is already registered in UETK as ${retired.uetkCadastralId}`,
+        409,
+        'ALREADY_IN_UETK',
+        { cadastralId: retired.uetkCadastralId },
+      );
+    }
 
     const cluster = await findClusterAtPoint(x, y);
     if (!cluster) {
@@ -761,7 +778,7 @@ export default class PendingLocationsService extends moleculer.Service {
         name: cluster.name,
         status: PendingLocationStatus.REQUESTED,
         grpkTopIds: cluster.topIds,
-        grpkLayer: cluster.layer,
+        grpkLayer: cluster.primaryLayer,
         municipality,
         geom: cluster.geom,
       });
