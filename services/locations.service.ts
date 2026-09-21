@@ -283,7 +283,38 @@ export default class LocationsService extends moleculer.Service {
             category: CategoryTranslates[item.properties.kategorija],
           };
         });
-        return mappedList;
+        if (mappedList.length) {
+          return mappedList.map((item) => ({ ...item, source: 'UETK' }));
+        }
+
+        // UETK has nothing here. Fall back to an already-approved staging row,
+        // then to a live GRPK proposal the user can request. Both calls stay
+        // inside this try block on purpose: findClusterAtPoint (via
+        // proposeAtPoint) throws on a GRPK API error rather than returning
+        // empty, so a transient GRPK failure propagates to the catch below as
+        // a ValidationError instead of silently looking like "no water body
+        // here" — that distinction is what stops the register from minting a
+        // duplicate identity for a water body it already holds.
+        const [x, y] = geom.features[0].geometry.coordinates as [number, number];
+        const approved = await this.broker.call('pendingLocations.resolveAtPoint', { x, y });
+        if (approved) {
+          return [{ ...(approved as Location), source: 'PENDING' }];
+        }
+
+        const proposal: { name: string } | null = await this.broker.call(
+          'pendingLocations.proposeAtPoint',
+          { x, y },
+        );
+        if (!proposal) return [];
+
+        return [
+          {
+            name: proposal.name,
+            cadastral_id: null as string | null,
+            municipality,
+            source: 'GRPK_CANDIDATE',
+          },
+        ];
       } catch (err) {
         throw new moleculer.Errors.ValidationError(err.message);
       }
