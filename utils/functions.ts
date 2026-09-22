@@ -1,7 +1,13 @@
-import moleculer, { Context } from 'moleculer';
+import { Context } from 'moleculer';
 import { AuthUserRole, UserAuthMeta } from '../services/api.service';
 import { TenantUserRole } from '../services/tenantUsers.service';
-import {FishOrigin, FishStockingErrorMessages, FishStockingStatus, throwNoRightsError} from '../types';
+import {
+  FishOrigin,
+  FishStockingErrorMessages,
+  FishStockingStatus,
+  throwNoRightsError,
+  throwValidationError,
+} from '../types';
 import {Setting} from "../services/settings.service";
 import {FishType} from "../services/fishTypes.service";
 import {FishAge} from "../services/fishAges.service";
@@ -26,7 +32,7 @@ export const isTimeBeforeReview = async (ctx: Context<any>, time: Date) => {
 
   const eventTime = time.getTime();
   if(isNaN(eventTime)) {
-    throw new moleculer.Errors.ValidationError('Invalid event time');
+    throwValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
   }
   const currentTime = new Date().getTime();
   const timeDiff = eventTime - currentTime;
@@ -47,7 +53,7 @@ export const  validateFishData = async(ctx: Context<any>) => {
   });
 
   if(fishTypesIds.length !== fishTypes.length) {
-    throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_FISH_TYPE);
+    throwValidationError(FishStockingErrorMessages.INVALID_FISH_TYPE);
   }
 
   // Validate batches fishAge
@@ -63,7 +69,7 @@ export const  validateFishData = async(ctx: Context<any>) => {
     }
   });
   if(fishAgesIds.length !== fishAges.length) {
-    throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_FISH_AGE);
+    throwValidationError(FishStockingErrorMessages.INVALID_FISH_AGE);
   }
 }
 
@@ -73,7 +79,7 @@ export const validateStockingCustomer = async(ctx: Context<any>) => {
       id: ctx.params.stockingCustomer,
     });
     if(!stockingCustomer) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STOCKING_CUSTOMER);
+      throwValidationError(FishStockingErrorMessages.INVALID_STOCKING_CUSTOMER);
     }
   }
 }
@@ -89,12 +95,10 @@ export const validateAssignedTo = async (ctx: Context<any, UserAuthMeta>) => {
         tenant: ctx.meta.profile,
       });
       if(!tenantUser) {
-        throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ASSIGNED_TO_ID);
+        throwValidationError(FishStockingErrorMessages.INVALID_ASSIGNED_TO_ID);
       }
     } else {
-      throw new moleculer.Errors.ValidationError(
-          FishStockingErrorMessages.ASSIGNED_TO_NOT_DEFINED
-      );
+      throwValidationError(FishStockingErrorMessages.ASSIGNED_TO_NOT_DEFINED);
     }
   } else {
     ctx.params.assignedTo = ctx.meta.user.id;
@@ -110,7 +114,7 @@ export const validateFishOrigin = async (ctx: Context<any>, existingFishStocking
     const fishCaughtInvalid = fishOrigin === FishOrigin.CAUGHT && !fishOriginReservoir?.name?.trim();
     const fishGrownInvalid = fishOrigin === FishOrigin.GROWN && !fishOriginCompanyName;
     if(fishCaughtInvalid || fishGrownInvalid) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_FISH_ORIGIN);
+      throwValidationError(FishStockingErrorMessages.INVALID_FISH_ORIGIN);
     }
 
   }
@@ -148,13 +152,11 @@ export const validateLocation = (location?: {
 }) => {
   if (!location || !isManualLocation(location)) return;
   if (!location.name?.trim()) {
-    throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_LOCATION_NAME);
+    throwValidationError(FishStockingErrorMessages.INVALID_LOCATION_NAME);
   }
   // the admin visibility scope filters on location.municipality.id
   if (!location.municipality?.id) {
-    throw new moleculer.Errors.ValidationError(
-      FishStockingErrorMessages.INVALID_LOCATION_MUNICIPALITY,
-    );
+    throwValidationError(FishStockingErrorMessages.INVALID_LOCATION_MUNICIPALITY);
   }
 };
 

@@ -100,6 +100,10 @@ export function throwNoRightsError(message?: string): Errors.MoleculerError {
   throw new Moleculer.Errors.MoleculerClientError(message || `No rights.`, 401, 'NO_RIGHTS');
 }
 
+export function throwValidationError(message?: string): never {
+  throw new Moleculer.Errors.ValidationError(message || `Validation error.`);
+}
+
 export enum FishOrigin {
   GROWN = 'GROWN',
   CAUGHT = 'CAUGHT',

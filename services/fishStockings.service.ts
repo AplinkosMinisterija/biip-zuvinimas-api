@@ -23,6 +23,7 @@ import {
   RestrictionType,
   StatusLabels,
   Table,
+  throwValidationError,
 } from '../types';
 import {
   canProfileModifyFishStocking,
@@ -573,7 +574,7 @@ export default class FishStockingsService extends moleculer.Service {
     if (ctx.params.stockingCustomer) {
       const stockingCustomer = await ctx.call('tenants.get', { id: ctx.params.stockingCustomer });
       if (!stockingCustomer) {
-        throw new moleculer.Errors.ValidationError('Invalid stocking customer');
+        throwValidationError('Invalid stocking customer');
       }
     }
 
@@ -594,7 +595,7 @@ export default class FishStockingsService extends moleculer.Service {
           },
         });
         if (!tenantUser) {
-          throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
+          throwValidationError(FishStockingErrorMessages.INVALID_ASSIGNED_TO_ID);
         }
       } else {
         // Freelancers fish stocking
@@ -603,7 +604,7 @@ export default class FishStockingsService extends moleculer.Service {
         });
         //if user does not exist or is not freelancer
         if (!user || !user.isFreelancer) {
-          throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
+          throwValidationError(FishStockingErrorMessages.INVALID_ASSIGNED_TO_ID);
         }
       }
     }
@@ -616,7 +617,7 @@ export default class FishStockingsService extends moleculer.Service {
       const canceledAtTime = new Date(canceledAt);
 
       if (time.getTime() - canceledAtTime.getTime() <= 0) {
-        throw new moleculer.Errors.ValidationError('Invalid "canceledAt" time');
+        throwValidationError('Invalid "canceledAt" time');
       }
     }
 
@@ -659,7 +660,7 @@ export default class FishStockingsService extends moleculer.Service {
       });
       // Validate inspector
       if (!inspector) {
-        throw new moleculer.Errors.ValidationError('Invalid inspector id');
+        throwValidationError('Invalid inspector id');
       }
       const fishStocking = await this.updateEntity(ctx, {
         ...ctx.params,
@@ -698,7 +699,7 @@ export default class FishStockingsService extends moleculer.Service {
     });
 
     if (!fishStocking) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
+      throwValidationError(FishStockingErrorMessages.INVALID_ID);
     }
 
     // Validate if user can cancel fishStocking
@@ -708,7 +709,7 @@ export default class FishStockingsService extends moleculer.Service {
       fishStocking.status !== FishStockingStatus.ONGOING &&
       fishStocking.status !== FishStockingStatus.NOT_FINISHED
     ) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
+      throwValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
 
     //if fish stocking is still in upcoming state, then it can be deleted.
@@ -793,7 +794,7 @@ export default class FishStockingsService extends moleculer.Service {
     // Validate eventTime
     const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
     if (!timeBeforeReview) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
+      throwValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
     }
 
     // Validate assignedTo
@@ -928,7 +929,7 @@ export default class FishStockingsService extends moleculer.Service {
       populate: 'status',
     });
     if (!existingFishStocking) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
+      throwValidationError(FishStockingErrorMessages.INVALID_ID);
     }
     // Validate fish stocking status
     if (
@@ -936,7 +937,7 @@ export default class FishStockingsService extends moleculer.Service {
         (status) => status === existingFishStocking.status,
       )
     ) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
+      throwValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
     //Validate if user can edit fishStocking
     canProfileModifyFishStocking(ctx, existingFishStocking);
@@ -953,7 +954,7 @@ export default class FishStockingsService extends moleculer.Service {
         try {
           return this.updateEntity(ctx, { assignedTo: ctx.params.assignedTo });
         } catch (e) {
-          throw new moleculer.Errors.ValidationError('Could not update fishStocking');
+          throwValidationError('Could not update fishStocking');
         }
       }
     }
@@ -962,7 +963,7 @@ export default class FishStockingsService extends moleculer.Service {
       if (ctx.params.eventTime) {
         const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
         if (!timeBeforeReview) {
-          throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
+          throwValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
         }
       }
       // Validate fishType & fishAge
@@ -1066,7 +1067,7 @@ export default class FishStockingsService extends moleculer.Service {
     });
 
     if (!existingFishStocking) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
+      throwValidationError(FishStockingErrorMessages.INVALID_ID);
     }
 
     // Validate if user can review
@@ -1074,7 +1075,7 @@ export default class FishStockingsService extends moleculer.Service {
 
     // Validate if fishStocking status, it must be ONGOING.
     if (existingFishStocking.status !== FishStockingStatus.ONGOING) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
+      throwValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
 
     const mergedBatches = [
