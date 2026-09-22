@@ -23,14 +23,17 @@ import {
   RestrictionType,
   StatusLabels,
   Table,
+  throwValidationError,
 } from '../types';
 import {
   canProfileModifyFishStocking,
   getStatus,
+  isManualLocation,
   isTimeBeforeReview,
   validateAssignedTo,
   validateFishData,
   validateFishOrigin,
+  validateLocation,
   validateStockingCustomer,
 } from '../utils/functions';
 import { AuthUserRole, UserAuthMeta } from './api.service';
@@ -82,10 +85,10 @@ interface Fields extends CommonFields {
   fishOrigin: string;
   fishOriginCompanyName?: string;
   fishOriginReservoir?: {
-    area: number;
-    cadastral_id: string;
+    area?: number;
+    cadastral_id?: string;
     name: string;
-    municipality: {
+    municipality?: {
       id: number;
       name: string;
     };
@@ -183,11 +186,12 @@ export type FishStocking<
         required: false,
         raw: true,
         properties: {
-          area: 'number',
+          area: 'number|optional',
           name: 'string',
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           municipality: {
             type: 'object',
+            optional: true,
             properties: {
               id: 'number',
               name: 'string',
@@ -200,7 +204,7 @@ export type FishStocking<
         raw: true,
         required: false,
         properties: {
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           name: 'string',
           municipality: {
             type: 'object',
@@ -391,9 +395,12 @@ export type FishStocking<
         async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
           const mandatoryLocations: MandatoryLocation[] = await ctx.call('mandatoryLocations.find');
           return fishStockings.map((entity) => {
-            const area = entity.location.area;
+            const area = entity.location?.area;
             if (area && area > 50) {
               return true;
+            }
+            if (isManualLocation(entity.location)) {
+              return false;
             }
             const mandatoryLocation = mandatoryLocations?.find(
               (ml) => ml.location?.cadastral_id === entity.location?.cadastral_id,
@@ -490,11 +497,12 @@ export default class FishStockingsService extends moleculer.Service {
         type: 'object',
         optional: true,
         properties: {
-          area: 'number',
+          area: 'number|optional',
           name: 'string',
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           municipality: {
             type: 'object',
+            optional: true,
             properties: {
               id: 'number',
               name: 'string',
@@ -566,7 +574,7 @@ export default class FishStockingsService extends moleculer.Service {
     if (ctx.params.stockingCustomer) {
       const stockingCustomer = await ctx.call('tenants.get', { id: ctx.params.stockingCustomer });
       if (!stockingCustomer) {
-        throw new moleculer.Errors.ValidationError('Invalid stocking customer');
+        throwValidationError('Invalid stocking customer');
       }
     }
 
@@ -587,7 +595,7 @@ export default class FishStockingsService extends moleculer.Service {
           },
         });
         if (!tenantUser) {
-          throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
+          throwValidationError(FishStockingErrorMessages.INVALID_ASSIGNED_TO_ID);
         }
       } else {
         // Freelancers fish stocking
@@ -596,7 +604,7 @@ export default class FishStockingsService extends moleculer.Service {
         });
         //if user does not exist or is not freelancer
         if (!user || !user.isFreelancer) {
-          throw new moleculer.Errors.ValidationError('Invalid "assignedTo" id');
+          throwValidationError(FishStockingErrorMessages.INVALID_ASSIGNED_TO_ID);
         }
       }
     }
@@ -609,12 +617,15 @@ export default class FishStockingsService extends moleculer.Service {
       const canceledAtTime = new Date(canceledAt);
 
       if (time.getTime() - canceledAtTime.getTime() <= 0) {
-        throw new moleculer.Errors.ValidationError('Invalid "canceledAt" time');
+        throwValidationError('Invalid "canceledAt" time');
       }
     }
 
     // Validate fishOrigin
     await validateFishOrigin(ctx, existingFishStocking);
+
+    // Validate location
+    validateLocation(ctx.params.location);
 
     // Admin can add, remove or update batches
     if (ctx.params.batches) {
@@ -649,7 +660,7 @@ export default class FishStockingsService extends moleculer.Service {
       });
       // Validate inspector
       if (!inspector) {
-        throw new moleculer.Errors.ValidationError('Invalid inspector id');
+        throwValidationError('Invalid inspector id');
       }
       const fishStocking = await this.updateEntity(ctx, {
         ...ctx.params,
@@ -688,7 +699,7 @@ export default class FishStockingsService extends moleculer.Service {
     });
 
     if (!fishStocking) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
+      throwValidationError(FishStockingErrorMessages.INVALID_ID);
     }
 
     // Validate if user can cancel fishStocking
@@ -698,7 +709,7 @@ export default class FishStockingsService extends moleculer.Service {
       fishStocking.status !== FishStockingStatus.ONGOING &&
       fishStocking.status !== FishStockingStatus.NOT_FINISHED
     ) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
+      throwValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
 
     //if fish stocking is still in upcoming state, then it can be deleted.
@@ -727,9 +738,15 @@ export default class FishStockingsService extends moleculer.Service {
       location: {
         type: 'object',
         properties: {
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           name: 'string',
-          municipality: 'object',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number|convert',
+              name: 'string',
+            },
+          },
           area: 'number|optional|convert',
           length: 'number|optional|convert',
           category: 'string|optional',
@@ -757,9 +774,10 @@ export default class FishStockingsService extends moleculer.Service {
         optional: true,
         properties: {
           name: 'string',
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           municipality: {
             type: 'object',
+            optional: true,
             properties: {
               id: 'number',
               name: 'string',
@@ -776,7 +794,7 @@ export default class FishStockingsService extends moleculer.Service {
     // Validate eventTime
     const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
     if (!timeBeforeReview) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
+      throwValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
     }
 
     // Validate assignedTo
@@ -790,6 +808,9 @@ export default class FishStockingsService extends moleculer.Service {
 
     // Validate fishOrigin
     await validateFishOrigin(ctx);
+
+    // Validate location
+    validateLocation(ctx.params.location);
 
     // Assign tenant if necessary
     ctx.params.tenant = ctx.meta.profile;
@@ -850,7 +871,7 @@ export default class FishStockingsService extends moleculer.Service {
         type: 'object',
         raw: true,
         properties: {
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           name: 'string',
           municipality: {
             type: 'object',
@@ -885,11 +906,12 @@ export default class FishStockingsService extends moleculer.Service {
         type: 'object',
         optional: true,
         properties: {
-          area: 'number',
+          area: 'number|optional',
           name: 'string',
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           municipality: {
             type: 'object',
+            optional: true,
             properties: {
               id: 'number',
               name: 'string',
@@ -907,7 +929,7 @@ export default class FishStockingsService extends moleculer.Service {
       populate: 'status',
     });
     if (!existingFishStocking) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
+      throwValidationError(FishStockingErrorMessages.INVALID_ID);
     }
     // Validate fish stocking status
     if (
@@ -915,10 +937,12 @@ export default class FishStockingsService extends moleculer.Service {
         (status) => status === existingFishStocking.status,
       )
     ) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
+      throwValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
     //Validate if user can edit fishStocking
     canProfileModifyFishStocking(ctx, existingFishStocking);
+    // Validate location
+    validateLocation(ctx.params.location);
     // Validate assignedTo
     const assignedToChanged =
       !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
@@ -930,7 +954,7 @@ export default class FishStockingsService extends moleculer.Service {
         try {
           return this.updateEntity(ctx, { assignedTo: ctx.params.assignedTo });
         } catch (e) {
-          throw new moleculer.Errors.ValidationError('Could not update fishStocking');
+          throwValidationError('Could not update fishStocking');
         }
       }
     }
@@ -939,7 +963,7 @@ export default class FishStockingsService extends moleculer.Service {
       if (ctx.params.eventTime) {
         const timeBeforeReview = await isTimeBeforeReview(ctx, new Date(ctx.params.eventTime));
         if (!timeBeforeReview) {
-          throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
+          throwValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
         }
       }
       // Validate fishType & fishAge
@@ -1043,7 +1067,7 @@ export default class FishStockingsService extends moleculer.Service {
     });
 
     if (!existingFishStocking) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_ID);
+      throwValidationError(FishStockingErrorMessages.INVALID_ID);
     }
 
     // Validate if user can review
@@ -1051,7 +1075,7 @@ export default class FishStockingsService extends moleculer.Service {
 
     // Validate if fishStocking status, it must be ONGOING.
     if (existingFishStocking.status !== FishStockingStatus.ONGOING) {
-      throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_STATUS);
+      throwValidationError(FishStockingErrorMessages.INVALID_STATUS);
     }
 
     const mergedBatches = [
@@ -1095,7 +1119,7 @@ export default class FishStockingsService extends moleculer.Service {
     const adapter = await this.getAdapter(ctx);
     const knex = adapter.client;
     let response = await knex.raw(
-      `SELECT COUNT(*) FROM (select distinct ("location"::jsonb->'cadastral_id') from "fish_stockings" GROUP BY "location") c`,
+      `SELECT COUNT(DISTINCT COALESCE("location"::jsonb->>'cadastral_id', "location"::jsonb->>'name')) FROM "fish_stockings" WHERE "location" IS NOT NULL`,
     );
     return Number(response.rows[0].count);
   }

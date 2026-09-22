@@ -21,7 +21,7 @@ export interface FishStockingsCompleted {
   location: {
     name: string;
     area: number;
-    cadastral_id: string;
+    cadastral_id?: string;
     municipality: {
       id: number;
       name: string;
