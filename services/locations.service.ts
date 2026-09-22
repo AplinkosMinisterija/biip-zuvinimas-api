@@ -38,7 +38,7 @@ export interface Location {
   area: number;
   length: number;
   category: string;
-  cadastral_id: string;
+  cadastral_id?: string;
   municipality: Municipality;
 }
 

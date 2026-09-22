@@ -27,10 +27,12 @@ import {
 import {
   canProfileModifyFishStocking,
   getStatus,
+  isManualLocation,
   isTimeBeforeReview,
   validateAssignedTo,
   validateFishData,
   validateFishOrigin,
+  validateLocation,
   validateStockingCustomer,
 } from '../utils/functions';
 import { AuthUserRole, UserAuthMeta } from './api.service';
@@ -82,10 +84,10 @@ interface Fields extends CommonFields {
   fishOrigin: string;
   fishOriginCompanyName?: string;
   fishOriginReservoir?: {
-    area: number;
-    cadastral_id: string;
+    area?: number;
+    cadastral_id?: string;
     name: string;
-    municipality: {
+    municipality?: {
       id: number;
       name: string;
     };
@@ -183,11 +185,12 @@ export type FishStocking<
         required: false,
         raw: true,
         properties: {
-          area: 'number',
+          area: 'number|optional',
           name: 'string',
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           municipality: {
             type: 'object',
+            optional: true,
             properties: {
               id: 'number',
               name: 'string',
@@ -200,7 +203,7 @@ export type FishStocking<
         raw: true,
         required: false,
         properties: {
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           name: 'string',
           municipality: {
             type: 'object',
@@ -391,9 +394,12 @@ export type FishStocking<
         async populate(ctx: Context, _values: any, fishStockings: FishStocking[]) {
           const mandatoryLocations: MandatoryLocation[] = await ctx.call('mandatoryLocations.find');
           return fishStockings.map((entity) => {
-            const area = entity.location.area;
+            const area = entity.location?.area;
             if (area && area > 50) {
               return true;
+            }
+            if (isManualLocation(entity.location)) {
+              return false;
             }
             const mandatoryLocation = mandatoryLocations?.find(
               (ml) => ml.location?.cadastral_id === entity.location?.cadastral_id,
@@ -490,11 +496,12 @@ export default class FishStockingsService extends moleculer.Service {
         type: 'object',
         optional: true,
         properties: {
-          area: 'number',
+          area: 'number|optional',
           name: 'string',
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           municipality: {
             type: 'object',
+            optional: true,
             properties: {
               id: 'number',
               name: 'string',
@@ -616,6 +623,9 @@ export default class FishStockingsService extends moleculer.Service {
     // Validate fishOrigin
     await validateFishOrigin(ctx, existingFishStocking);
 
+    // Validate location
+    validateLocation(ctx.params.location);
+
     // Admin can add, remove or update batches
     if (ctx.params.batches) {
       await ctx.call('fishBatches.updateBatches', {
@@ -727,9 +737,15 @@ export default class FishStockingsService extends moleculer.Service {
       location: {
         type: 'object',
         properties: {
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           name: 'string',
-          municipality: 'object',
+          municipality: {
+            type: 'object',
+            properties: {
+              id: 'number|convert',
+              name: 'string',
+            },
+          },
           area: 'number|optional|convert',
           length: 'number|optional|convert',
           category: 'string|optional',
@@ -757,9 +773,10 @@ export default class FishStockingsService extends moleculer.Service {
         optional: true,
         properties: {
           name: 'string',
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           municipality: {
             type: 'object',
+            optional: true,
             properties: {
               id: 'number',
               name: 'string',
@@ -790,6 +807,9 @@ export default class FishStockingsService extends moleculer.Service {
 
     // Validate fishOrigin
     await validateFishOrigin(ctx);
+
+    // Validate location
+    validateLocation(ctx.params.location);
 
     // Assign tenant if necessary
     ctx.params.tenant = ctx.meta.profile;
@@ -850,7 +870,7 @@ export default class FishStockingsService extends moleculer.Service {
         type: 'object',
         raw: true,
         properties: {
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           name: 'string',
           municipality: {
             type: 'object',
@@ -885,11 +905,12 @@ export default class FishStockingsService extends moleculer.Service {
         type: 'object',
         optional: true,
         properties: {
-          area: 'number',
+          area: 'number|optional',
           name: 'string',
-          cadastral_id: 'string',
+          cadastral_id: 'string|optional',
           municipality: {
             type: 'object',
+            optional: true,
             properties: {
               id: 'number',
               name: 'string',
@@ -919,6 +940,8 @@ export default class FishStockingsService extends moleculer.Service {
     }
     //Validate if user can edit fishStocking
     canProfileModifyFishStocking(ctx, existingFishStocking);
+    // Validate location
+    validateLocation(ctx.params.location);
     // Validate assignedTo
     const assignedToChanged =
       !!ctx.params.assignedTo && ctx.params.assignedTo !== existingFishStocking.assignedTo;
@@ -1095,7 +1118,7 @@ export default class FishStockingsService extends moleculer.Service {
     const adapter = await this.getAdapter(ctx);
     const knex = adapter.client;
     let response = await knex.raw(
-      `SELECT COUNT(*) FROM (select distinct ("location"::jsonb->'cadastral_id') from "fish_stockings" GROUP BY "location") c`,
+      `SELECT COUNT(DISTINCT COALESCE("location"::jsonb->>'cadastral_id', "location"::jsonb->>'name')) FROM "fish_stockings" WHERE "location" IS NOT NULL`,
     );
     return Number(response.rows[0].count);
   }

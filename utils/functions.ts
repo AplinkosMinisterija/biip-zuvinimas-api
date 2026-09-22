@@ -107,7 +107,7 @@ export const validateFishOrigin = async (ctx: Context<any>, existingFishStocking
     const fishOrigin = ctx.params.fishOrigin || existingFishStocking?.fishOrigin;
     const fishOriginReservoir = ctx.params.fishOriginReservoir || existingFishStocking?.fishOriginReservoir;
     const fishOriginCompanyName = ctx.params.fishOriginCompanyName || existingFishStocking?.fishOriginCompanyName;
-    const fishCaughtInvalid = fishOrigin === FishOrigin.CAUGHT && !fishOriginReservoir;
+    const fishCaughtInvalid = fishOrigin === FishOrigin.CAUGHT && !fishOriginReservoir?.name?.trim();
     const fishGrownInvalid = fishOrigin === FishOrigin.GROWN && !fishOriginCompanyName;
     if(fishCaughtInvalid || fishGrownInvalid) {
       throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_FISH_ORIGIN);
@@ -136,6 +136,27 @@ export const canProfileModifyFishStocking = (ctx: Context<any, UserAuthMeta>, ex
     }
   }
 }
+
+export const isManualLocation = (location?: { cadastral_id?: string }) => !location?.cadastral_id;
+
+// Only hand-typed water bodies are checked here: a UETK one carries its own name
+// and municipality, and older rows with an incomplete location must stay editable.
+export const validateLocation = (location?: {
+  cadastral_id?: string;
+  name?: string;
+  municipality?: { id?: number };
+}) => {
+  if (!location || !isManualLocation(location)) return;
+  if (!location.name?.trim()) {
+    throw new moleculer.Errors.ValidationError(FishStockingErrorMessages.INVALID_LOCATION_NAME);
+  }
+  // the admin visibility scope filters on location.municipality.id
+  if (!location.municipality?.id) {
+    throw new moleculer.Errors.ValidationError(
+      FishStockingErrorMessages.INVALID_LOCATION_MUNICIPALITY,
+    );
+  }
+};
 
 export const isCanceled = (fishStocking: FishStocking) => {
   return !!fishStocking.canceledAt;

@@ -124,6 +124,8 @@ export enum FishStockingErrorMessages {
   INVALID_FISH_AGE = 'Invalid "fishAge" id',
   INVALID_FISH_TYPE = 'Invalid "fishType" id',
   INVALID_DELETE_TIME = 'Current time is after permitted deletion time',
+  INVALID_LOCATION_MUNICIPALITY = 'Location municipality is required',
+  INVALID_LOCATION_NAME = 'Location name is required when there is no cadastral id',
 }
 
 export const StatusLabels = {

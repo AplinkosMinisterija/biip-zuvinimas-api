@@ -14,7 +14,7 @@ const mapItem = (data: RecentLocation) => {
 
 export interface RecentLocation {
   name: string;
-  cadastralId: string;
+  cadastralId?: string;
   municipality: {
     id: number;
     name: string;
@@ -39,7 +39,7 @@ export interface RecentLocation {
     auth: RestrictionType.USER,
     fields: {
       name: 'string',
-      cadastralId: 'string',
+      cadastralId: 'string|optional',
       municipality: {
         type: 'object',
         properties: {
@@ -127,7 +127,7 @@ export default class RecentLocationsService extends moleculer.Service {
           return mapItem(item);
         }),
       };
-    } else if (data?.cadastralId) {
+    } else if (data) {
       return mapItem(data);
     }
   }

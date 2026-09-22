@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import moleculer, { Context } from 'moleculer';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
 import { EntityChangedParams, RestrictionType } from '../types';
+import { isManualLocation } from '../utils/functions';
 import { FishStocking } from './fishStockings.service';
 import { CompletedFishBatch, FishStockingsCompleted } from './fishStockingsCompleted.service';
 import { TenantUser } from './tenantUsers.service';
@@ -269,6 +270,7 @@ export default class PublicService extends moleculer.Service {
     );
 
     const filteredBatches = completedFishStockings
+      ?.filter((stocking) => !isManualLocation(stocking.location))
       ?.map((stocking) =>
         stocking.fishBatches?.map((batch) => ({
           ...batch,
