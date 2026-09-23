@@ -191,6 +191,14 @@ export default class UsersService extends moleculer.Service {
       (ctx.meta.authUser.type === AuthUserRole.ADMIN ||
         ctx.meta.authUser.type === AuthUserRole.SUPER_ADMIN)
     ) {
+      // Admins are mirrored into `users` only to fill audit columns — they are not
+      // app users and must not appear in the admin user list. Spread last so a
+      // caller-supplied `type` cannot bring them back.
+      ctx.params.query = {
+        ...sanitizeQueryForTenantScope(ctx.params.query),
+        type: UserType.USER,
+      };
+
       if (ctx.params.filter) {
         if (typeof ctx.params.filter === 'string') {
           ctx.params.filter = JSON.parse(ctx.params.filter);
@@ -218,6 +226,42 @@ export default class UsersService extends moleculer.Service {
         }
       }
     }
+  }
+
+  @Action({
+    visibility: 'protected',
+  })
+  async resolveAuditUserId(ctx: Context<{}, UserAuthMeta>) {
+    const authUser = ctx.meta?.authUser;
+
+    const isAdmin =
+      authUser?.type === AuthUserRole.ADMIN || authUser?.type === AuthUserRole.SUPER_ADMIN;
+
+    if (!isAdmin) {
+      return;
+    }
+
+    const existingUser: User = await this.findEntity(null, {
+      query: { authUser: authUser.id },
+      scope: false,
+    });
+
+    if (existingUser) {
+      return existingUser.id;
+    }
+
+    // No ctx — COMMON_FIELDS hooks must not resolve the audit user again.
+    // Contact details are deliberately not copied: the row only carries an id for
+    // the audit columns, and `createdBy`/`updatedBy`/`deletedBy` are populated for
+    // tenant users too.
+    const user: User = await this.createEntity(null, {
+      authUser: authUser.id,
+      firstName: authUser.firstName,
+      lastName: authUser.lastName,
+      type: UserType.ADMIN,
+    });
+
+    return user.id;
   }
 
   @Action({
