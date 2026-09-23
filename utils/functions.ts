@@ -69,17 +69,14 @@ export const validateCanManageTenantUser = (ctx: Context<any, UserAuthMeta>, err
   }
 };
 
-// Auth only knows ADMIN/USER, so USER_ADMIN (synced to auth as ADMIN) must keep its role.
+// Only promotes: auth knows just ADMIN/USER, so USER_ADMIN (synced as ADMIN) must stay,
+// and OWNERs added by an admin sit in auth as USER and must not be demoted.
 export const getTenantUserRoleFromAuth = (
   authRole: AuthGroupRole,
   role: TenantUserRole,
 ): TenantUserRole => {
   if (authRole === AuthGroupRole.ADMIN && role === TenantUserRole.USER) {
     return TenantUserRole.OWNER;
-  }
-
-  if (authRole === AuthGroupRole.USER && role === TenantUserRole.OWNER) {
-    return TenantUserRole.USER;
   }
 
   return role;

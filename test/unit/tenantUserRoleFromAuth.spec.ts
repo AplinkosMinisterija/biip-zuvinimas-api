@@ -17,9 +17,9 @@ describe('getTenantUserRoleFromAuth', () => {
     );
   });
 
-  it('demotes OWNER to USER when auth relation is USER', () => {
+  it('keeps OWNER when auth relation is USER (OWNER added by an admin)', () => {
     expect(getTenantUserRoleFromAuth(AuthGroupRole.USER, TenantUserRole.OWNER)).toBe(
-      TenantUserRole.USER,
+      TenantUserRole.OWNER,
     );
   });
 
