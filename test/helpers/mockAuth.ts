@@ -122,12 +122,18 @@ export function makeMockAuthService(store: MockAuthStore): ServiceSchema {
           );
           if (existing && ctx.params.throwErrors) throw new Error('USER_EXISTS');
           if (ctx.params.companyCode) {
-            // company invite — returns a group
-            const g = store.addGroup({
+            // company invite — biip-auth-api looks the group up by company code and
+            // hands back the SAME group when the company is invited again (see
+            // usersEvartai.service.ts `invite`), so a re-invite must not mint a new id.
+            const existingGroup = Array.from(store.groups.values()).find(
+              (g) => g.companyCode && g.companyCode === ctx.params.companyCode,
+            );
+            if (existingGroup) return existingGroup;
+
+            return store.addGroup({
               name: `Company: ${ctx.params.companyCode}`,
               companyCode: ctx.params.companyCode,
             });
-            return g;
           }
           const u = store.addUser({
             type: 'USER',
@@ -144,7 +150,12 @@ export function makeMockAuthService(store: MockAuthStore): ServiceSchema {
           const user = store.users.get(Number(ctx.params.id));
           if (!user) return null;
           const groupId = Number(ctx.params.groupId);
-          if (!user.groups.find((g) => g.id === groupId)) {
+          const existing = user.groups.find((g) => g.id === groupId);
+          // biip-auth-api `userGroups.assign` upserts: an existing membership keeps
+          // its row and has its role updated.
+          if (existing) {
+            existing.role = ctx.params.role ?? existing.role;
+          } else {
             user.groups.push({ id: groupId, role: ctx.params.role ?? 'USER' });
           }
           return user;
@@ -183,8 +194,15 @@ export function makeMockAuthService(store: MockAuthStore): ServiceSchema {
 
       'groups.remove': {
         handler(ctx: any) {
+          // biip-auth-api keeps company groups: `DELETE /api/groups/:id` only drops the
+          // calling app from the group's app list when it has a companyCode
+          // (groups.service.ts `removeGroup`), so the group id survives and a later
+          // invite by the same company code returns it again.
+          const group = store.groups.get(Number(ctx.params.id));
+          if (group?.companyCode) return { success: true };
+
           store.groups.delete(Number(ctx.params.id));
-          return true;
+          return { success: true };
         },
       },
 

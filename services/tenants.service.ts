@@ -6,10 +6,11 @@ import {
   COMMON_DEFAULT_SCOPES,
   COMMON_FIELDS,
   COMMON_SCOPES,
+  CommonFields,
   FieldHookCallback,
   RestrictionType,
 } from '../types';
-import { TenantUser, TenantUserRole } from './tenantUsers.service';
+import { TenantUserRole } from './tenantUsers.service';
 
 import DbConnection from '../mixins/database.mixin';
 import { UserAuthMeta } from './api.service';
@@ -171,14 +172,25 @@ export default class TenantsService extends moleculer.Service {
     // it will throw error if tenant already exists
     const authGroup: any = await ctx.call('auth.users.invite', inviteData);
 
-    const tenant: Tenant = await this.createEntity(ctx, {
-      authGroup: authGroup.id,
+    const tenantData = {
       email: companyEmail,
       phone: companyPhone,
       name: companyName,
       address: companyAddress,
       code: companyCode,
+    };
+
+    // The auth server keeps company groups and hands the same one back when a
+    // company is invited again, so a deleted company must reuse its own row
+    // instead of leaving two tenants pointing at one auth group.
+    const existingTenant: Tenant & Partial<CommonFields> = await this.findEntity(null, {
+      query: { authGroup: authGroup.id },
+      scope: false,
     });
+
+    const tenant: Tenant = existingTenant
+      ? await this.restoreTenant(ctx, existingTenant, tenantData)
+      : await this.createEntity(ctx, { ...tenantData, authGroup: authGroup.id });
 
     if (ownerRequired) {
       await ctx.call('tenantUsers.invite', {
@@ -196,45 +208,33 @@ export default class TenantsService extends moleculer.Service {
   }
 
   @Method
-  async createAuthGroup(ctx: any) {
-    const inviteData: any = {
-      companyCode: ctx.params.companyCode,
-    };
-
-    if (!ctx.params.authGroup) {
-      if (ctx.params.email) {
-        inviteData.notify = [ctx.params.email];
-      }
-
-      const authGroup = await ctx.call('auth.users.invite', inviteData);
-
-      ctx.params.authGroup = authGroup.id;
+  async restoreTenant(
+    ctx: Context<any, UserAuthMeta>,
+    tenant: Tenant & Partial<CommonFields>,
+    data: Record<string, any>,
+  ) {
+    if (!tenant.deletedAt) {
+      throw new moleculer.Errors.MoleculerClientError(
+        'Tenant already exists',
+        422,
+        'ALREADY_EXISTS',
+      );
     }
 
-    return ctx;
-  }
+    const deletedAt = new Date(tenant.deletedAt);
 
-  @Method
-  async removeAuthGroup(ctx: any) {
-    const tenant: Tenant = await ctx.call('tenants.resolve', {
-      id: ctx.params.id,
+    await this.updateEntity(
+      ctx,
+      { id: tenant.id, $set: { deletedAt: null, deletedBy: null } },
+      { raw: true, permissive: true, scope: false },
+    );
+
+    await ctx.call('tenantUsers.restoreRemovedWithTenant', {
+      tenant: Number(tenant.id),
+      deletedFrom: deletedAt.toISOString(),
     });
 
-    const tenantUsers: TenantUser[] = await ctx.call('tenantUsers.find', {
-      query: {
-        tenant: ctx.params.id,
-      },
-    });
-
-    await Promise.all(tenantUsers.map((tu) => ctx.call('tenantUsers.remove', { id: tu.id })));
-
-    const authGroup = await ctx.call('auth.groups.remove', {
-      id: tenant.authGroup,
-    });
-
-    ctx.params.authGroup = authGroup.id;
-
-    return ctx;
+    return this.updateEntity(ctx, { id: tenant.id, ...data });
   }
 
   @Method

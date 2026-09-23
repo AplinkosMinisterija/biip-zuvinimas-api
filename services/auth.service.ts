@@ -7,6 +7,7 @@ import { AuthGroupRole, TenantUser, TenantUserRole } from './tenantUsers.service
 import { User, UserType } from './users.service';
 
 import authMixin from 'biip-auth-nodejs/mixin';
+import { roleToAuthGroupRole } from '../utils/functions';
 import { UserAuthMeta } from './api.service';
 import { Tenant } from './tenants.service';
 
@@ -272,11 +273,6 @@ export default class AuthService extends moleculer.Service {
   async 'tenantUsers.updated'(ctx: Context<EntityChangedParams<TenantUser>>) {
     const tenantUser = ctx.params.data as TenantUser;
     const oldTenantUser = ctx.params.oldData as TenantUser;
-
-    const roleToAuthGroupRole = (role: TenantUserRole): AuthGroupRole =>
-      role === TenantUserRole.OWNER || role === TenantUserRole.USER_ADMIN
-        ? AuthGroupRole.ADMIN
-        : AuthGroupRole.USER;
 
     const authRole = roleToAuthGroupRole(tenantUser.role);
     const oldAuthRole = roleToAuthGroupRole(oldTenantUser.role);
