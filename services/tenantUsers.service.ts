@@ -16,7 +16,7 @@ import { AuthUserRole, UserAuthMeta } from './api.service';
 import { User, UserType } from './users.service';
 
 import DbConnection from '../mixins/database.mixin';
-import { validateCanManageTenantUser } from '../utils/functions';
+import { sanitizeQueryForTenantScope, validateCanManageTenantUser } from '../utils/functions';
 import { Tenant } from './tenants.service';
 
 export enum AuthGroupRole {
@@ -135,12 +135,19 @@ export type TenantUser<
   },
 
   actions: {
-    find: { auth: RestrictionType.DEFAULT },
+    // `find` has no `beforeSelect` hook, so over HTTP it returned the whole
+    // table to any logged-in user. Nothing outside the API calls it — the web
+    // apps use `list` — and internal `ctx.call('tenantUsers.find', ...)`
+    // (populates in users/tenants, canProfileModifyFishStocking) still works.
+    find: { visibility: 'protected' },
     list: {
       auth: RestrictionType.DEFAULT,
     },
     count: { auth: RestrictionType.DEFAULT },
-    get: { auth: RestrictionType.DEFAULT },
+    // `get` resolves by primary key and ignores the `beforeSelect` query scope,
+    // so a USER could read any tenant's membership row by id. Only the admin UI
+    // opens a single tenantUser.
+    get: { auth: RestrictionType.ADMIN },
     create: {
       auth: RestrictionType.ADMIN,
     },
@@ -338,15 +345,11 @@ export default class TenantUsersService extends moleculer.Service {
     validateCanManageTenantUser(ctx, 'Only OWNER and USER_ADMIN can select users from tenant.');
 
     if (ctx.meta.authUser.type === AuthUserRole.USER) {
-      if (typeof ctx.params.query === 'string') {
-        ctx.params.query = JSON.parse(ctx.params.query);
-      }
-
-      const query = ctx.params.query;
-
+      // `tenant` is spread LAST: a caller-supplied `query.tenant` used to replace it
+      // and list another tenant's members.
       ctx.params.query = {
+        ...sanitizeQueryForTenantScope(ctx.params.query),
         tenant: ctx.meta.profile,
-        ...query,
       };
     }
   }
