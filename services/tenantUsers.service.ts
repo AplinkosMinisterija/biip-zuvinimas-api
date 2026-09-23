@@ -16,7 +16,11 @@ import { AuthUserRole, UserAuthMeta } from './api.service';
 import { User, UserType } from './users.service';
 
 import DbConnection from '../mixins/database.mixin';
-import { sanitizeQueryForTenantScope, validateCanManageTenantUser } from '../utils/functions';
+import {
+  roleToAuthGroupRole,
+  sanitizeQueryForTenantScope,
+  validateCanManageTenantUser,
+} from '../utils/functions';
 import { Tenant } from './tenants.service';
 
 export enum AuthGroupRole {
@@ -231,10 +235,7 @@ export default class TenantUsersService extends moleculer.Service {
 
     const tenant: Tenant = await ctx.call('tenants.resolve', { id: tenantId });
 
-    const authRole =
-      role === TenantUserRole.OWNER || role === TenantUserRole.USER_ADMIN
-        ? AuthGroupRole.ADMIN
-        : AuthGroupRole.USER;
+    const authRole = roleToAuthGroupRole(role);
 
     const inviteData: any = {
       personalCode,
@@ -306,6 +307,55 @@ export default class TenantUsersService extends moleculer.Service {
     }
 
     return profiles;
+  }
+
+  // Called by `tenants.invite` when a deleted company is invited again: the members
+  // that the tenant-removal cascade took out come back, while anyone removed before
+  // that (i.e. removed deliberately) stays out.
+  @Action({
+    visibility: 'protected',
+    params: {
+      tenant: 'number|convert',
+      deletedFrom: 'string',
+    },
+  })
+  async restoreRemovedWithTenant(ctx: Context<{ tenant: number; deletedFrom: string }>) {
+    const { tenant, deletedFrom } = ctx.params;
+    // The cascade runs a few ms after the tenant row is stamped; allow for that
+    // without reaching back to removals that happened before the deletion.
+    const since = new Date(deletedFrom).getTime() - 1000;
+
+    const tenantUsers: TenantUser<'user'>[] = await this.findEntities(null, {
+      query: { tenant },
+      populate: 'user',
+      scope: false,
+    });
+
+    const removedWithTenant = tenantUsers.filter(
+      (tenantUser) => tenantUser.deletedAt && new Date(tenantUser.deletedAt).getTime() >= since,
+    );
+
+    if (!removedWithTenant.length) {
+      return [];
+    }
+
+    const tenantEntity: Tenant = await ctx.call('tenants.resolve', { id: tenant });
+
+    for (const tenantUser of removedWithTenant) {
+      await this.updateEntity(
+        ctx,
+        { id: tenantUser.id, $set: { deletedAt: null, deletedBy: null } },
+        { raw: true, permissive: true, scope: false },
+      );
+
+      await ctx.call('auth.users.assignToGroup', {
+        id: tenantUser.user.authUser,
+        groupId: Number(tenantEntity.authGroup),
+        role: roleToAuthGroupRole(tenantUser.role),
+      });
+    }
+
+    return removedWithTenant.map((tenantUser) => tenantUser.id);
   }
 
   @Method
