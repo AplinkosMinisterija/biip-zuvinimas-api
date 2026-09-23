@@ -1,6 +1,6 @@
 import { Context } from 'moleculer';
 import { AuthUserRole, UserAuthMeta } from '../services/api.service';
-import { TenantUserRole } from '../services/tenantUsers.service';
+import { AuthGroupRole, TenantUserRole } from '../services/tenantUsers.service';
 import {
   FishOrigin,
   FishStockingErrorMessages,
@@ -67,6 +67,22 @@ export const validateCanManageTenantUser = (ctx: Context<any, UserAuthMeta>, err
   ) {
     throwNoRightsError(err);
   }
+};
+
+// Auth only knows ADMIN/USER, so USER_ADMIN (synced to auth as ADMIN) must keep its role.
+export const getTenantUserRoleFromAuth = (
+  authRole: AuthGroupRole,
+  role: TenantUserRole,
+): TenantUserRole => {
+  if (authRole === AuthGroupRole.ADMIN && role === TenantUserRole.USER) {
+    return TenantUserRole.OWNER;
+  }
+
+  if (authRole === AuthGroupRole.USER && role === TenantUserRole.OWNER) {
+    return TenantUserRole.USER;
+  }
+
+  return role;
 };
 
 export const isTimeBeforeReview = async (ctx: Context<any>, time: Date) => {
