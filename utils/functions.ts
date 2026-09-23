@@ -17,6 +17,47 @@ import {FishBatch} from "../services/fishBatches.service";
 import {isEmpty} from "lodash";
 import {add, endOfDay, isAfter, isBefore, startOfDay, sub} from "date-fns";
 
+// Recursively remove every `$raw` key from a user-supplied query. `$raw` is the
+// `@moleculer/database` knex adapter's raw-SQL sink (`whereRaw`), and the adapter
+// recurses into every nested object/array — so stripping it only at the top level is
+// bypassed by `query[$or][0][id][$raw]`. Server-built `$raw` clauses are added AFTER
+// sanitization, so they are never seen here.
+export function stripRawDeep<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(stripRawDeep) as unknown as T;
+  if (value && typeof value === 'object') {
+    const out: Record<string, any> = {};
+    for (const key of Object.keys(value)) {
+      if (key === '$raw') continue;
+      out[key] = stripRawDeep((value as Record<string, any>)[key]);
+    }
+    return out as T;
+  }
+  return value;
+}
+
+// Strip security-sensitive keys from a caller-supplied query before merging it with
+// the server's tenant scope. The scope clause itself is spread in AFTER this runs, so
+// a caller can no longer replace it.
+const TENANT_SCOPE_FORBIDDEN_KEYS = ['$raw', 'tenants'] as const;
+
+export function sanitizeQueryForTenantScope(query: any) {
+  if (typeof query === 'string') {
+    try {
+      query = JSON.parse(query);
+    } catch (e) {
+      return {};
+    }
+  }
+  if (!query || typeof query !== 'object') return {};
+
+  const clean: Record<string, any> = {};
+  for (const key of Object.keys(query)) {
+    if ((TENANT_SCOPE_FORBIDDEN_KEYS as readonly string[]).includes(key)) continue;
+    clean[key] = stripRawDeep(query[key]);
+  }
+  return clean;
+}
+
 export const validateCanManageTenantUser = (ctx: Context<any, UserAuthMeta>, err: string) => {
   const { profile } = ctx.meta;
 

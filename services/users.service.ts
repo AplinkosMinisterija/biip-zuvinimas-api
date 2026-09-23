@@ -15,6 +15,7 @@ import { TenantUser, TenantUserRole } from './tenantUsers.service';
 import { map } from 'lodash';
 import ApiGateway from 'moleculer-web';
 import DbConnection from '../mixins/database.mixin';
+import { sanitizeQueryForTenantScope } from '../utils/functions';
 import { AuthUserRole, UserAuthMeta } from './api.service';
 
 export enum UserRole {
@@ -175,12 +176,14 @@ export default class UsersService extends moleculer.Service {
       });
     }
     if (ctx.meta.user && ctx.meta.profile) {
+      // The tenant clause is spread LAST: a caller-supplied `query.$raw` used to
+      // replace it and return every user in the database.
       ctx.params.query = {
+        ...sanitizeQueryForTenantScope(ctx.params.query),
         $raw: {
           condition: `?? \\? ?`,
           bindings: ['tenants', Number(ctx.meta.profile)],
         },
-        ...ctx.params.query,
       };
     } else if (
       !ctx.meta.user &&
@@ -207,8 +210,8 @@ export default class UsersService extends moleculer.Service {
             };
           }
           ctx.params.query = {
+            ...sanitizeQueryForTenantScope(ctx.params.query),
             $raw,
-            ...ctx.params.query,
           };
           delete ctx.params.filter.tenantId;
           delete ctx.params.filter.role;
