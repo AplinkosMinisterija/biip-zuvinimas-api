@@ -7,6 +7,7 @@ import { AuthGroupRole, TenantUser, TenantUserRole } from './tenantUsers.service
 import { User, UserType } from './users.service';
 
 import authMixin from 'biip-auth-nodejs/mixin';
+import { getTenantUserRoleFromAuth } from '../utils/functions';
 import { UserAuthMeta } from './api.service';
 import { Tenant } from './tenants.service';
 
@@ -180,22 +181,10 @@ export default class AuthService extends moleculer.Service {
           role: authGroup.role === AuthGroupRole.ADMIN ? TenantUserRole.OWNER : TenantUserRole.USER,
         });
       } else {
-        if (authGroup.role === AuthGroupRole.ADMIN && tenantUser.role !== TenantUserRole.OWNER) {
-          // After login with "juridinis asmuo" auth changes relation to ADMIN
-          // So we have to change it to OWNER
-          await ctx.call('tenantUsers.update', {
-            id: tenantUser.id,
-            role: TenantUserRole.OWNER,
-          });
-        }
-
-        if (authGroup.role === AuthGroupRole.USER && tenantUser.role === TenantUserRole.OWNER) {
-          // Changing from OWNER to other roles SHOULD NOT happen without our app
-          // But again, just in case
-          await ctx.call('tenantUsers.update', {
-            id: tenantUser.id,
-            role: TenantUserRole.USER,
-          });
+        // After login with "juridinis asmuo" auth changes relation to ADMIN
+        const role = getTenantUserRoleFromAuth(authGroup.role, tenantUser.role);
+        if (role !== tenantUser.role) {
+          await ctx.call('tenantUsers.syncRoleFromAuth', { id: tenantUser.id, role });
         }
       }
     }

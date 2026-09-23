@@ -1,6 +1,6 @@
 import { Context } from 'moleculer';
 import { AuthUserRole, UserAuthMeta } from '../services/api.service';
-import { TenantUserRole } from '../services/tenantUsers.service';
+import { AuthGroupRole, TenantUserRole } from '../services/tenantUsers.service';
 import {
   FishOrigin,
   FishStockingErrorMessages,
@@ -67,6 +67,19 @@ export const validateCanManageTenantUser = (ctx: Context<any, UserAuthMeta>, err
   ) {
     throwNoRightsError(err);
   }
+};
+
+// Only promotes: auth knows just ADMIN/USER, so USER_ADMIN (synced as ADMIN) must stay,
+// and OWNERs added by an admin sit in auth as USER and must not be demoted.
+export const getTenantUserRoleFromAuth = (
+  authRole: AuthGroupRole,
+  role: TenantUserRole,
+): TenantUserRole => {
+  if (authRole === AuthGroupRole.ADMIN && role === TenantUserRole.USER) {
+    return TenantUserRole.OWNER;
+  }
+
+  return role;
 };
 
 export const isTimeBeforeReview = async (ctx: Context<any>, time: Date) => {

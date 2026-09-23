@@ -160,6 +160,18 @@ export type TenantUser<
   },
 })
 export default class TenantUsersService extends moleculer.Service {
+  // Login-time sync from auth: there is no profile yet, so it must skip the update hooks.
+  @Action({
+    visibility: 'protected',
+    params: {
+      id: 'any',
+      role: { type: 'enum', values: Object.values(TenantUserRole) },
+    },
+  })
+  syncRoleFromAuth(ctx: Context<{ id: TenantUser['id']; role: TenantUserRole }>) {
+    return this.updateEntity(ctx, { id: ctx.params.id, role: ctx.params.role });
+  }
+
   @Action({
     auth: RestrictionType.USER,
   })
