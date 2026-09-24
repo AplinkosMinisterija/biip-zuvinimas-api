@@ -20,6 +20,7 @@ const RecentLocationsSchema = require('../../services/recentLocations.service').
 const LocationsSchema = require('../../services/locations.service').default;
 const PublishingFishStockingsSchema = require('../../services/publishing.fishStockings.service').default;
 const FishStockingsCompletedSchema = require('../../services/fishStockingsCompleted.service').default;
+const PendingLocationsSchema = require('../../services/pendingLocations.service').default;
 
 // Services we replace with stubs so tests don't touch the network or
 // external infrastructure (MinIO, Postmark, Sentry).
@@ -143,6 +144,7 @@ export class ApiHelper {
       LocationsSchema,
       PublishingFishStockingsSchema,
       FishStockingsCompletedSchema,
+      PendingLocationsSchema,
     ].forEach((s) => this.broker.createService(s));
 
     this.apiService = this.broker.createService(ApiSchema);
@@ -208,6 +210,7 @@ export class ApiHelper {
       'mandatoryLocations',
       'recentLocations',
       'locations',
+      'pendingLocations',
       'minio',
       'mail',
     ]);
@@ -235,6 +238,7 @@ export class ApiHelper {
       'fish_stockings',
       'recent_locations',
       'mandatory_locations',
+      'pending_locations',
       'tenant_users',
       'tenants',
       'users',
@@ -447,5 +451,50 @@ export class ApiHelper {
     if (opts.token) h['Authorization'] = `Bearer ${opts.token}`;
     if (opts.profile !== undefined) h['X-Profile'] = String(opts.profile);
     return h;
+  }
+
+  /**
+   * Insert a fish_stockings row directly (bypassing register/review) that
+   * already carries a `location`. Used by pendingLocations specs to seed a
+   * "completed" stocking for the linkToUetk rewrite + recent_locations
+   * fixtures, without driving the full register/review HTTP flow.
+   */
+  async createCompletedFishStocking({
+    location,
+  }: {
+    location: { cadastral_id: string; name: string; municipality: { id: number; name: string } };
+  }): Promise<number> {
+    const usersService: any = this.broker.getLocalService('users');
+    const adapter: any = await usersService.getAdapter();
+    const knex = adapter.client;
+    const [row] = await knex('fish_stockings')
+      .insert({
+        eventTime: new Date(Date.now() - 86400000),
+        location: JSON.stringify(location),
+        createdAt: new Date(),
+      })
+      .returning('id');
+    return typeof row === 'object' ? row.id : row;
+  }
+
+  /** `SELECT count(*) FROM fish_stockings WHERE location::jsonb->>'cadastral_id' = ?` */
+  async countStockingsByCadastralId(cadastralId: string): Promise<number> {
+    const usersService: any = this.broker.getLocalService('users');
+    const adapter: any = await usersService.getAdapter();
+    const knex = adapter.client;
+    const { rows } = await knex.raw(
+      `SELECT count(*) FROM fish_stockings WHERE location::jsonb->>'cadastral_id' = ?`,
+      [cadastralId],
+    );
+    return Number(rows[0]?.count || 0);
+  }
+
+  /** `SELECT name FROM recent_locations` */
+  async recentLocationNames(): Promise<string[]> {
+    const usersService: any = this.broker.getLocalService('users');
+    const adapter: any = await usersService.getAdapter();
+    const knex = adapter.client;
+    const { rows } = await knex.raw(`SELECT name FROM recent_locations`);
+    return rows.map((r: { name: string }) => r.name);
   }
 }

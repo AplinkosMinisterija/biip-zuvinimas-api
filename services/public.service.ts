@@ -258,6 +258,11 @@ export default class PublicService extends moleculer.Service {
       bindings.push(JSON.stringify({ cadastral_id: String(cadastralId) }));
     }
 
+    // The NR- namespace belongs to the zuvinimas staging register, not to
+    // UETK. Leaking it would put identifiers UETK does not own into the UETK
+    // portal. Unconditional: it must hold for every call, filtered or not.
+    clauses.push(`location::jsonb->>'cadastral_id' NOT LIKE 'NR-%'`);
+
     if (clauses.length) {
       query.$raw = { condition: clauses.join(' AND '), bindings };
     }

@@ -1431,4 +1431,24 @@ export default class FishStockingsService extends moleculer.Service {
       );
     }
   }
+
+  /**
+   * pendingLocations retired a reserved NR-###### id once AAA registered the
+   * object in UETK. Each consumer owns rewriting its own table — pending
+   * Locations cannot reach into fish_stockings itself (a different service,
+   * biip-zvejyba-api, has its own database and needs the same event).
+   */
+  @Event()
+  async 'pendingLocations.registeredInUetk'(
+    ctx: Context<{ reservedCadastralId: string; uetkCadastralId: string }>,
+  ) {
+    const { reservedCadastralId, uetkCadastralId } = ctx.params;
+    const adapter = await this.getAdapter(ctx);
+    await adapter.client.raw(
+      `UPDATE fish_stockings
+          SET location = jsonb_set(location::jsonb, '{cadastral_id}', to_jsonb(?::text))
+        WHERE location::jsonb->>'cadastral_id' = ?`,
+      [uetkCadastralId, reservedCadastralId],
+    );
+  }
 }
