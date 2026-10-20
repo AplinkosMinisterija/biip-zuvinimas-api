@@ -32,11 +32,26 @@ export interface CommonPopulates {
   deletedBy: User;
 }
 
+// Admins have no `ctx.meta.user` (api.service resolves a local `users` row only for
+// USER type), so audit columns would stay NULL. `users.resolveAuditUserId` mirrors the
+// admin into a local row and returns its id.
+function getAuditUserId(ctx: FieldHookCallback['ctx']) {
+  if (ctx?.meta?.user?.id) {
+    return ctx.meta.user.id;
+  }
+
+  if (!ctx?.meta?.authUser?.id) {
+    return undefined;
+  }
+
+  return ctx.call<User['id']>('users.resolveAuditUserId');
+}
+
 export const COMMON_FIELDS = {
   createdBy: {
     type: 'number',
     readonly: true,
-    onCreate: ({ ctx }: FieldHookCallback) => ctx?.meta?.user?.id,
+    onCreate: ({ ctx }: FieldHookCallback) => getAuditUserId(ctx),
     populate: {
       action: 'users.resolve',
       params: {
@@ -54,7 +69,7 @@ export const COMMON_FIELDS = {
     type: 'number',
     readonly: true,
     hidden: 'byDefault',
-    onUpdate: ({ ctx }: FieldHookCallback) => ctx?.meta?.user?.id,
+    onUpdate: ({ ctx }: FieldHookCallback) => getAuditUserId(ctx),
     populate: {
       action: 'users.resolve',
       params: {
@@ -72,7 +87,7 @@ export const COMMON_FIELDS = {
   deletedBy: {
     type: 'number',
     readonly: true,
-    onRemove: ({ ctx }: FieldHookCallback) => ctx?.meta?.user?.id,
+    onRemove: ({ ctx }: FieldHookCallback) => getAuditUserId(ctx),
     populate: {
       action: 'users.resolve',
       params: {
