@@ -1,6 +1,7 @@
 'use strict';
 
 import { DeepQueryMixin } from '@aplinkosministerija/moleculer-accounts';
+import { captureException } from '@sentry/node';
 import { isEmpty, map } from 'lodash';
 import moleculer, { Context } from 'moleculer';
 import { Action, Event, Method, Service } from 'moleculer-decorators';
@@ -27,8 +28,11 @@ import {
 } from '../types';
 import {
   canProfileModifyFishStocking,
+  fishBatchesFingerprint,
   getStatus,
+  isCanceled,
   isManualLocation,
+  isSameLocation,
   isTimeBeforeReview,
   validateAssignedTo,
   validateFishData,
@@ -47,6 +51,9 @@ import { Tenant } from './tenants.service';
 import { User } from './users.service';
 
 const Readable = require('stream').Readable;
+
+// a lost response or a second Enter must not file the same notification twice
+const RESUBMIT_WINDOW_MS = 5 * 60 * 1000;
 
 const BATCH_DATA_EXISTS_QUERY =
   'EXISTS (SELECT 1 FROM fish_batches fb WHERE fb.fish_stocking_id = fish_stockings.id AND fb.review_amount IS NOT NULL AND fb.deleted_at is NULL)';
@@ -815,6 +822,14 @@ export default class FishStockingsService extends moleculer.Service {
     // Assign tenant if necessary
     ctx.params.tenant = ctx.meta.profile;
 
+    const alreadyRegistered = await this.findRecentDuplicate(ctx);
+    if (alreadyRegistered) {
+      return this.resolveEntities(ctx, {
+        id: alreadyRegistered.id,
+        populate: ['status', 'batches'],
+      });
+    }
+
     const fishStocking: FishStocking = await this.createEntity(ctx, ctx.params);
 
     try {
@@ -827,20 +842,25 @@ export default class FishStockingsService extends moleculer.Service {
       throw e;
     }
 
-    // Send email to notify about new fish stocking
-    const users: any = await ctx.call('auth.permissions.getUsersByAccess', {
-      access: 'FISH_STOCKING_EMAILS',
-      data: {
-        municipality: fishStocking.location.municipality.id,
-      },
-    });
-    const emailsToNotify: Array<string> = users?.rows?.map((i: any) => i.email) || [];
-    if (emailsToNotify.length) {
-      await ctx.call('mail.sendFishStockingUpdateEmail', {
-        emails: emailsToNotify,
-        fishStocking,
-        update: false,
+    // the record is already saved, so a failing notification must not fail the request
+    try {
+      const users: any = await ctx.call('auth.permissions.getUsersByAccess', {
+        access: 'FISH_STOCKING_EMAILS',
+        data: {
+          municipality: fishStocking.location.municipality.id,
+        },
       });
+      const emailsToNotify: Array<string> = users?.rows?.map((i: any) => i.email) || [];
+      if (emailsToNotify.length) {
+        await ctx.call('mail.sendFishStockingUpdateEmail', {
+          emails: emailsToNotify,
+          fishStocking,
+          update: false,
+        });
+      }
+    } catch (e) {
+      this.logger.error('Failed to notify about new fish stocking', e);
+      captureException(e, { extra: { fishStocking: fishStocking.id } });
     }
     return this.resolveEntities(ctx, { id: fishStocking.id, populate: ['status', 'batches'] });
   }
@@ -1214,6 +1234,37 @@ export default class FishStockingsService extends moleculer.Service {
   @Action()
   async getAll(ctx: Context) {
     return this.findEntities(ctx, ctx.params);
+  }
+
+  @Method
+  async findRecentDuplicate(ctx: Context<any, UserAuthMeta>) {
+    const registeredAfter = Date.now() - RESUBMIT_WINDOW_MS;
+    const stockings: FishStocking[] = await this.findEntities(ctx, {
+      query: { eventTime: ctx.params.eventTime, createdBy: ctx.meta.user.id },
+      fields: ['id', 'createdAt', 'location', 'canceledAt'],
+    });
+
+    const candidates = stockings.filter(
+      (stocking) =>
+        !isCanceled(stocking) &&
+        new Date(stocking.createdAt).getTime() >= registeredAfter &&
+        isSameLocation(stocking.location, ctx.params.location),
+    );
+    if (!candidates.length) return;
+
+    const batches: FishBatch[] = await ctx.call('fishBatches.find', {
+      query: { fishStocking: { $in: candidates.map((candidate) => candidate.id) } },
+      fields: ['fishStocking', 'fishType', 'fishAge', 'amount', 'weight'],
+      populate: [],
+    });
+    const registeredFish = fishBatchesFingerprint(ctx.params.batches);
+
+    return candidates.find(
+      (candidate) =>
+        fishBatchesFingerprint(
+          batches.filter((batch) => Number(batch.fishStocking) === Number(candidate.id)),
+        ) === registeredFish,
+    );
   }
 
   @Method
