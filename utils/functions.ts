@@ -1,5 +1,13 @@
+import { add, endOfDay, isAfter, isBefore, startOfDay } from 'date-fns';
+import { isEmpty } from 'lodash';
 import { Context } from 'moleculer';
+import ApiGateway from 'moleculer-web';
 import { AuthUserRole, UserAuthMeta } from '../services/api.service';
+import { FishAge } from '../services/fishAges.service';
+import { FishBatch } from '../services/fishBatches.service';
+import { FishStocking } from '../services/fishStockings.service';
+import { FishType } from '../services/fishTypes.service';
+import { Setting } from '../services/settings.service';
 import { AuthGroupRole, TenantUserRole } from '../services/tenantUsers.service';
 import {
   FishOrigin,
@@ -8,14 +16,6 @@ import {
   throwNoRightsError,
   throwValidationError,
 } from '../types';
-import {Setting} from "../services/settings.service";
-import {FishType} from "../services/fishTypes.service";
-import {FishAge} from "../services/fishAges.service";
-import {FishStocking} from "../services/fishStockings.service";
-import ApiGateway from "moleculer-web";
-import {FishBatch} from "../services/fishBatches.service";
-import {isEmpty} from "lodash";
-import {add, endOfDay, isAfter, isBefore, startOfDay, sub} from "date-fns";
 
 // Recursively remove every `$raw` key from a user-supplied query. `$raw` is the
 // `@moleculer/database` knex adapter's raw-SQL sink (`whereRaw`), and the adapter
@@ -83,72 +83,73 @@ export const getTenantUserRoleFromAuth = (
 };
 
 export const isTimeBeforeReview = async (ctx: Context<any>, time: Date) => {
-
   const eventTime = time.getTime();
-  if(isNaN(eventTime)) {
+  if (isNaN(eventTime)) {
     throwValidationError(FishStockingErrorMessages.INVALID_EVENT_TIME);
   }
   const currentTime = new Date().getTime();
   const timeDiff = eventTime - currentTime;
   const settings: Setting = await ctx.call('settings.getSettings');
 
-  return timeDiff >= (24*60*60*1000) * settings.minTimeTillFishStocking;
-}
+  return timeDiff >= 24 * 60 * 60 * 1000 * settings.minTimeTillFishStocking;
+};
 
-export const  validateFishData = async(ctx: Context<any>) => {
+export const validateFishData = async (ctx: Context<any>) => {
   //TODO: no duplicate fishTypes allowed
 
   // Validate batches fishType
-  const fishTypesIds = ctx.params.batches.map((batch: {fishType: number}) => batch.fishType);
+  const fishTypesIds = ctx.params.batches.map((batch: { fishType: number }) => batch.fishType);
   const fishTypes: FishType[] = await ctx.call('fishTypes.find', {
     query: {
-      id: {$in: fishTypesIds}
-    }
+      id: { $in: fishTypesIds },
+    },
   });
 
-  if(fishTypesIds.length !== fishTypes.length) {
+  if (fishTypesIds.length !== fishTypes.length) {
     throwValidationError(FishStockingErrorMessages.INVALID_FISH_TYPE);
   }
 
   // Validate batches fishAge
-  const fishAgesIds = ctx.params.batches.reduce((data: Array<number>, current: {fishAge: number}) => {
-    if(!data.includes(current.fishAge)) {
-      data.push(current.fishAge);
-    }
-    return data;
-  }, []);
+  const fishAgesIds = ctx.params.batches.reduce(
+    (data: Array<number>, current: { fishAge: number }) => {
+      if (!data.includes(current.fishAge)) {
+        data.push(current.fishAge);
+      }
+      return data;
+    },
+    [],
+  );
   const fishAges: FishAge[] = await ctx.call('fishAges.find', {
     query: {
-      id: {$in: fishAgesIds}
-    }
+      id: { $in: fishAgesIds },
+    },
   });
-  if(fishAgesIds.length !== fishAges.length) {
+  if (fishAgesIds.length !== fishAges.length) {
     throwValidationError(FishStockingErrorMessages.INVALID_FISH_AGE);
   }
-}
+};
 
-export const validateStockingCustomer = async(ctx: Context<any>) => {
-  if(ctx.params.stockingCustomer) {
+export const validateStockingCustomer = async (ctx: Context<any>) => {
+  if (ctx.params.stockingCustomer) {
     const stockingCustomer = await ctx.call('tenants.get', {
       id: ctx.params.stockingCustomer,
     });
-    if(!stockingCustomer) {
+    if (!stockingCustomer) {
       throwValidationError(FishStockingErrorMessages.INVALID_STOCKING_CUSTOMER);
     }
   }
-}
-
+};
 
 export const validateAssignedTo = async (ctx: Context<any, UserAuthMeta>) => {
   // If freelancer registration, then assignedTo is connected user.
   // If tenant registration, then assignedTo must be user of that tenant.
-  if(ctx.meta.profile) {
-    if(ctx.params.assignedTo) {
+  if (ctx.meta.profile) {
+    if (ctx.params.assignedTo) {
       const tenantUser = await ctx.call('tenantUsers.find', {
         user: ctx.params.assignedTo,
         tenant: ctx.meta.profile,
       });
-      if(!tenantUser) {
+      if (!tenantUser) {
         throwValidationError(FishStockingErrorMessages.INVALID_ASSIGNED_TO_ID);
       }
     } else {
@@ -157,28 +158,35 @@ export const validateAssignedTo = async (ctx: Context<any, UserAuthMeta>) => {
   } else {
     ctx.params.assignedTo = ctx.meta.user.id;
   }
-}
+};
 
-
-export const validateFishOrigin = async (ctx: Context<any>, existingFishStocking?: FishStocking) => {
-  if(ctx.params.fishOrigin || ctx.params.fishOriginReservoir || ctx.params.fishOriginCompanyName) {
+export const validateFishOrigin = async (
+  ctx: Context<any>,
+  existingFishStocking?: FishStocking,
+) => {
+  if (ctx.params.fishOrigin || ctx.params.fishOriginReservoir || ctx.params.fishOriginCompanyName) {
     const fishOrigin = ctx.params.fishOrigin || existingFishStocking?.fishOrigin;
-    const fishOriginReservoir = ctx.params.fishOriginReservoir || existingFishStocking?.fishOriginReservoir;
-    const fishOriginCompanyName = ctx.params.fishOriginCompanyName || existingFishStocking?.fishOriginCompanyName;
-    const fishCaughtInvalid = fishOrigin === FishOrigin.CAUGHT && !fishOriginReservoir?.name?.trim();
+    const fishOriginReservoir =
+      ctx.params.fishOriginReservoir || existingFishStocking?.fishOriginReservoir;
+    const fishOriginCompanyName =
+      ctx.params.fishOriginCompanyName || existingFishStocking?.fishOriginCompanyName;
+    const fishCaughtInvalid =
+      fishOrigin === FishOrigin.CAUGHT && !fishOriginReservoir?.name?.trim();
     const fishGrownInvalid = fishOrigin === FishOrigin.GROWN && !fishOriginCompanyName;
-    if(fishCaughtInvalid || fishGrownInvalid) {
+    if (fishCaughtInvalid || fishGrownInvalid) {
       throwValidationError(FishStockingErrorMessages.INVALID_FISH_ORIGIN);
     }
-
   }
-}
+};
 
-export const canProfileModifyFishStocking = (ctx: Context<any, UserAuthMeta>, existingFishStocking: FishStocking) => {
-  if(ctx.meta.profile) {
+export const canProfileModifyFishStocking = (
+  ctx: Context<any, UserAuthMeta>,
+  existingFishStocking: FishStocking,
+) => {
+  if (ctx.meta.profile) {
     const tenantUserCanModify = ctx.meta.profile == existingFishStocking.tenant;
     const stockingCustomerCanModify = ctx.meta.profile == existingFishStocking.stockingCustomer;
-    if(!tenantUserCanModify && !stockingCustomerCanModify) {
+    if (!tenantUserCanModify && !stockingCustomerCanModify) {
       throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
         error: 'Invalid tenant profile',
       });
@@ -186,16 +194,41 @@ export const canProfileModifyFishStocking = (ctx: Context<any, UserAuthMeta>, ex
   } else {
     const isFreelancer = ctx.meta.user.isFreelancer;
     const isTenantFishStocking = !!existingFishStocking.tenant;
-    const canFreelancerModify = isFreelancer && !isTenantFishStocking &&  ctx.meta.user.id !== existingFishStocking.assignedTo;
-    if(canFreelancerModify) {
+    const canFreelancerModify =
+      isFreelancer && !isTenantFishStocking && ctx.meta.user.id !== existingFishStocking.assignedTo;
+    if (canFreelancerModify) {
       throw new ApiGateway.Errors.UnAuthorizedError('NO_RIGHTS', {
         error: 'Invalid user profile',
       });
     }
   }
-}
+};
 
 export const isManualLocation = (location?: { cadastral_id?: string }) => !location?.cadastral_id;
+
+// order-independent, so a resubmit that reshuffles the rows still matches
+export const fishBatchesFingerprint = (
+  batches: Array<{ fishType?: any; fishAge?: any; amount?: any; weight?: any }> = [],
+) =>
+  batches
+    .map((batch) =>
+      [
+        Number(batch.fishType),
+        Number(batch.fishAge),
+        Number(batch.amount),
+        batch.weight == null ? null : Number(batch.weight),
+      ].join(':'),
+    )
+    .sort()
+    .join('|');
+
+export const isSameLocation = (
+  a?: { cadastral_id?: string; name?: string },
+  b?: { cadastral_id?: string; name?: string },
+) => {
+  if (!isManualLocation(a) || !isManualLocation(b)) return a?.cadastral_id === b?.cadastral_id;
+  return !!a?.name?.trim() && a.name.trim() === b?.name?.trim();
+};
 
 // Only hand-typed water bodies are checked here: a UETK one carries its own name
 // and municipality, and older rows with an incomplete location must stay editable.
@@ -240,9 +273,9 @@ export const isOngoing = (fishStocking: FishStocking, settings: Setting) => {
   const eventTime = new Date(fishStocking.eventTime);
   const start = startOfDay(eventTime);
   const end = endOfDay(
-      add(eventTime, {
-        days: settings.maxTimeForRegistration,
-      }),
+    add(eventTime, {
+      days: settings.maxTimeForRegistration,
+    }),
   );
   const today = new Date();
   return isAfter(today, start) && isBefore(today, end);
@@ -256,14 +289,19 @@ export const isUpcoming = (fishStocking: FishStocking) => {
 export const isNotFinished = (fishStocking: FishStocking, settings: Setting) => {
   const eventTime = new Date(fishStocking.eventTime);
   const end = endOfDay(
-      add(eventTime, {
-        days: settings.maxTimeForRegistration,
-      }),
+    add(eventTime, {
+      days: settings.maxTimeForRegistration,
+    }),
   );
   return isAfter(new Date(), end);
 };
 
-export const getStatus = (ctx: Context, fishStocking: FishStocking, batches: FishBatch[], settings: Setting) => {
+export const getStatus = (
+  ctx: Context,
+  fishStocking: FishStocking,
+  batches: FishBatch[],
+  settings: Setting,
+) => {
   if (isCanceled(fishStocking)) {
     return FishStockingStatus.CANCELED;
   } else if (isInspected(fishStocking, batches)) {
@@ -278,7 +316,4 @@ export const getStatus = (ctx: Context, fishStocking: FishStocking, batches: Fis
     return FishStockingStatus.NOT_FINISHED;
   }
   return null;
-}
-
-
-
+};

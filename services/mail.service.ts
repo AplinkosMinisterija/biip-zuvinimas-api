@@ -1,5 +1,6 @@
 'use strict';
 
+import { captureException } from '@sentry/node';
 import moleculer, { Context } from 'moleculer';
 import { Action, Service } from 'moleculer-decorators';
 import { ServerClient } from 'postmark';
@@ -49,9 +50,10 @@ export default class FishAgesService extends moleculer.Service {
     }));
 
     try {
-      return client.sendEmailBatchWithTemplates(data);
+      return await client.sendEmailBatchWithTemplates(data);
     } catch (err) {
-      console.error(err);
+      this.logger.error('Failed to send fish stocking update email', err);
+      captureException(err);
       return false;
     }
   }
