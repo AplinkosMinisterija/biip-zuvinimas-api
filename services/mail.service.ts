@@ -78,6 +78,12 @@ export default class FishAgesService extends moleculer.Service {
       },
     };
 
-    return client.sendEmailWithTemplate(data);
+    try {
+      return await client.sendEmailWithTemplate(data);
+    } catch (err) {
+      this.logger.error('Failed to send fish stocking assigned email', err);
+      captureException(err);
+      return false;
+    }
   }
 }

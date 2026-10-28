@@ -682,11 +682,15 @@ export default class FishStockingsService extends moleculer.Service {
       });
 
       if (fishStockingBeforeUpdate.inspector?.id !== ctx.params.inspector) {
-        if (inspector) {
+        // the assignment is already saved, so a failing notification must not fail the request
+        try {
           await ctx.call('mail.sendFishStockingAssignedEmail', {
             email: inspector.email,
             fishStocking,
           });
+        } catch (e) {
+          this.logger.error('Failed to notify the assigned inspector', e);
+          captureException(e, { extra: { fishStocking: fishStocking.id } });
         }
       }
       return fishStocking;
