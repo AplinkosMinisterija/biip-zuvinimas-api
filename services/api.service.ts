@@ -4,6 +4,7 @@ import moleculer, { Context } from 'moleculer';
 import { Action, Method, Service } from 'moleculer-decorators';
 import ApiGateway from 'moleculer-web';
 import { RequestMessage, RestrictionType, throwNoRightsError } from '../types';
+import { stripClientRaw } from '../utils/sanitizeClientParams';
 import { FREELANCER_PROFILE_ID } from './tenantUsers.service';
 import { User } from './users.service';
 
@@ -45,12 +46,16 @@ export enum AuthUserRole {
     routes: [
       {
         path: '',
+        // Removes client-supplied `$raw` (raw SQL) from params.
+        onBeforeCall: stripClientRaw,
         aliases: {
           'GET /ping': 'api.ping',
         },
       },
       {
         path: '/uml',
+        // Removes client-supplied `$raw` (raw SQL) from params.
+        onBeforeCall: stripClientRaw,
         aliases: {
           'GET /': 'uml.generate',
           'GET /entity': 'uml.entity.generate',
@@ -59,6 +64,8 @@ export enum AuthUserRole {
       // moleculer-auto-openapi routes
       {
         path: '/api/openapi',
+        // Removes client-supplied `$raw` (raw SQL) from params.
+        onBeforeCall: stripClientRaw,
         aliases: {
           'GET /openapi.json': 'openapi.generateDocs', // swagger scheme
           'GET /ui': 'openapi.ui', // ui
@@ -67,6 +74,8 @@ export enum AuthUserRole {
       },
       {
         path: '/api',
+        // Removes client-supplied `$raw` (raw SQL) from params.
+        onBeforeCall: stripClientRaw,
         whitelist: [
           // Access to any actions in all services under "/api" URL
           '**',
